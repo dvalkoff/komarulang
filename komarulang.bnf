@@ -1,0 +1,5 @@
+expression -> literal | operation;
+operation -> binary_operation;
+binary_operation -> literal (operator expression)+;
+literal -> INTEGER;
+operator -> "+" | "-";
