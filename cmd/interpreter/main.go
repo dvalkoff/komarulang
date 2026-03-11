@@ -9,7 +9,7 @@ import (
 	"github.com/dvalkoff/komarulang/tokenizer/token"
 )
 
-func evaluate(ast parser.Expression) int {
+func evaluate(ast parser.Expression) any {
 	switch typed := ast.(type) {
 	case parser.BinaryExpression:
 		return evaluateBinaryOperation(evaluate(typed.Left), evaluate(typed.Right), typed.Operator)
@@ -19,12 +19,31 @@ func evaluate(ast parser.Expression) int {
 	return 0
 }
 
-func evaluateBinaryOperation(left, right int, operator token.TokenType) int {
+func evaluateBinaryOperation(leftOperand, rightOperand any, operator token.TokenType) any {
+	left, right := leftOperand.(int), rightOperand.(int)
 	switch operator {
 	case token.Plus:
 		return left + right
 	case token.Minus:
 		return left - right
+	case token.Star:
+		return left * right
+	case token.Slash:
+		return left / right
+
+	case token.Less:
+		return left < right
+	case token.LessEqual:
+		return left <= right
+	case token.Greater:
+		return left > right
+	case token.GreaterEqual:
+		return left >= right
+
+	case token.EqualEqual:
+		return leftOperand == rightOperand
+	case token.BangEqual:
+		return leftOperand != rightOperand
 	}
 	return 0
 }

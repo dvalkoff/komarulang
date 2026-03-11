@@ -13,10 +13,19 @@ type IntegerLiteral struct {
 	Value int
 }
 
+type BooleanLiteral struct {
+	Value bool
+}
+
 type BinaryExpression struct {
 	Left     Expression
 	Operator token.TokenType
 	Right    Expression
+}
+
+type UnaryExpression struct {
+	Operator token.TokenType
+	Right Expression
 }
 
 type Parser struct {
@@ -29,18 +38,18 @@ func NewParser(tokens []token.Token) *Parser {
 }
 
 func (p *Parser) Expression() (Expression, error) {
-	return p.binary()
+	return p.comparison()
 }
 
-func (p *Parser) binary() (Expression, error) {
-	expression, err := p.literal()
+func (p *Parser) comparison() (Expression, error) {
+	expression, err := p.term()
 	if err != nil {
 		return nil, err
 	}
 
-	for p.match(token.Plus, token.Minus) {
+	for p.match(token.EqualEqual, token.BangEqual, token.Less, token.LessEqual, token.Greater, token.GreaterEqual) {
 		operator := p.previous().TokenType
-		right, err := p.literal()
+		right, err := p.term()
 		if err != nil {
 			return nil, err
 		}
@@ -49,12 +58,80 @@ func (p *Parser) binary() (Expression, error) {
 	return expression, nil
 }
 
-func (p *Parser) literal() (Expression, error) {
-	if !p.match(token.Integer) {
-		return nil, fmt.Errorf("Expected %v. got: %v", token.Integer, p.peek().TokenType)
+func (p *Parser) term() (Expression, error) {
+	expression, err := p.factor()
+	if err != nil {
+		return nil, err
 	}
-	intVal := p.previous().Value.(int)
-	return IntegerLiteral{intVal}, nil
+
+	for p.match(token.Plus, token.Minus) {
+		operator := p.previous().TokenType
+		right, err := p.factor()
+		if err != nil {
+			return nil, err
+		}
+		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+	}
+	return expression, nil
+}
+
+func (p *Parser) factor() (Expression, error) {
+	expression, err := p.unary()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.match(token.Slash, token.Star) {
+		operator := p.previous().TokenType
+		right, err := p.unary()
+		if err != nil {
+			return nil, err
+		}
+		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+	}
+	return expression, nil
+}
+
+func (p *Parser) unary() (Expression, error) {
+	if p.match(token.Minus, token.Bang) {
+		operator := p.previous().TokenType
+		right, err := p.unary()
+		if err != nil {
+			return nil, err
+		}
+		return UnaryExpression{Operator: operator, Right: right}, nil
+	}
+	return p.primary()
+}
+
+func (p *Parser) primary() (Expression, error) {
+	if p.match(token.Integer) {
+		intVal := p.previous().Value.(int)
+		return IntegerLiteral{intVal}, nil
+	}
+	if p.match(token.Bool) {
+		boolVal := p.previous().Value.(bool)
+		return BooleanLiteral{boolVal}, nil
+	}
+	if p.match(token.LeftParen) {
+		expression, err := p.Expression()
+		if err != nil {
+			return nil, err
+		}
+		if err := p.consume(token.RightParen); err != nil {
+			return nil, err
+		}
+		return expression, nil
+	}
+ 	return nil, fmt.Errorf("Expected %v. got: %v", token.Integer, p.peek().TokenType)
+}
+
+func (p *Parser) consume(tokenType token.TokenType) error {
+	if p.checkType(tokenType) {
+		p.advance()
+		return nil
+	}
+	return fmt.Errorf("Expected %v. got %v", tokenType, p.peek().TokenType)
 }
 
 func (p *Parser) match(types ...token.TokenType) bool {
