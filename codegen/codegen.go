@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dvalkoff/komarulang/parser"
-	"github.com/dvalkoff/komarulang/tokenizer/token"
+	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
 type Register int

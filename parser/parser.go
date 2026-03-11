@@ -4,7 +4,7 @@ import (
 	"slices"
 	"fmt"
 
-	"github.com/dvalkoff/komarulang/tokenizer/token"
+	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
 type Expression any
@@ -81,7 +81,7 @@ func (p *Parser) factor() (Expression, error) {
 		return nil, err
 	}
 
-	for p.match(token.Slash, token.Star) {
+	for p.match(token.Slash, token.Star, token.Percent) {
 		operator := p.previous().TokenType
 		right, err := p.unary()
 		if err != nil {

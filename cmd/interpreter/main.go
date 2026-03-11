@@ -6,46 +6,72 @@ import (
 
 	"github.com/dvalkoff/komarulang/parser"
 	"github.com/dvalkoff/komarulang/tokenizer"
-	"github.com/dvalkoff/komarulang/tokenizer/token"
 )
 
 func evaluate(ast parser.Expression) any {
 	switch typed := ast.(type) {
 	case parser.BinaryExpression:
 		return evaluateBinaryOperation(evaluate(typed.Left), evaluate(typed.Right), typed.Operator)
+	case parser.UnaryExpression:
+		return evaluateUnaryOperation(evaluate(typed.Right), typed.Operator)
+	case parser.BooleanLiteral:
+		return typed.Value
 	case parser.IntegerLiteral:
 		return typed.Value
 	}
 	return 0
 }
 
-func evaluateBinaryOperation(leftOperand, rightOperand any, operator token.TokenType) any {
-	left, right := leftOperand.(int), rightOperand.(int)
+func evaluateUnaryOperation(rightOperand any, operator tokenizer.TokenType) any {
 	switch operator {
-	case token.Plus:
-		return left + right
-	case token.Minus:
-		return left - right
-	case token.Star:
-		return left * right
-	case token.Slash:
-		return left / right
+	case tokenizer.Minus:
+		right := rightOperand.(int)
+		return -right
+	case tokenizer.Bang:
+		right := rightOperand.(bool)
+		return !right
+	}
+	panic(fmt.Sprintf("can not execute operation %v on: %v", operator, rightOperand))
+}
 
-	case token.Less:
+func evaluateBinaryOperation(leftOperand, rightOperand any, operator tokenizer.TokenType) any {
+	
+	switch operator {
+	case tokenizer.Plus:
+		left, right := leftOperand.(int), rightOperand.(int)
+		return left + right
+	case tokenizer.Minus:
+		left, right := leftOperand.(int), rightOperand.(int)
+		return left - right
+	case tokenizer.Star:
+		left, right := leftOperand.(int), rightOperand.(int)
+		return left * right
+	case tokenizer.Slash:
+		left, right := leftOperand.(int), rightOperand.(int)
+		return left / right
+	case tokenizer.Percent:
+		left, right := leftOperand.(int), rightOperand.(int)
+		return left % right
+
+	case tokenizer.Less:
+		left, right := leftOperand.(int), rightOperand.(int)
 		return left < right
-	case token.LessEqual:
+	case tokenizer.LessEqual:
+		left, right := leftOperand.(int), rightOperand.(int)
 		return left <= right
-	case token.Greater:
+	case tokenizer.Greater:
+		left, right := leftOperand.(int), rightOperand.(int)
 		return left > right
-	case token.GreaterEqual:
+	case tokenizer.GreaterEqual:
+		left, right := leftOperand.(int), rightOperand.(int)
 		return left >= right
 
-	case token.EqualEqual:
+	case tokenizer.EqualEqual:
 		return leftOperand == rightOperand
-	case token.BangEqual:
+	case tokenizer.BangEqual:
 		return leftOperand != rightOperand
 	}
-	return 0
+	panic(fmt.Sprintf("can not execute operation %v on left: %v and right %v", operator, leftOperand, rightOperand))
 }
 
 func main() {
@@ -64,5 +90,5 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("evaluated value", evaluate(tree))
+	fmt.Println(evaluate(tree))
 }

@@ -2,27 +2,29 @@ package tokenizer
 
 import (
 	"bufio"
+	"fmt"
 	"io"
-	"strings"
-
-	"github.com/dvalkoff/komarulang/tokenizer/token"
+	"strconv"
+	"unicode"
 )
 
 type Tokenizer struct {
 	File string
 }
 
-func (t Tokenizer) Scan(reader io.Reader) ([]token.Token, error) {
+func (t Tokenizer) Scan(reader io.Reader) ([]Token, error) {
 	scanner := bufio.NewScanner(reader)
 	currentLine := 0
-	tokens := make([]token.Token, 0)
+	tokens := make([]Token, 0)
 	for ; scanner.Scan(); currentLine++ {
 		line := scanner.Text()
-		line = strings.TrimSpace(line)
-		if len(line) == 0 {
-			continue
+		lineTokenizer := LineTokenizer{
+			source: []rune(line), 
+			current: 0,
+			line: currentLine,
+			file: t.File,
 		}
-		lineTokens, err := t.ScanLine(line, currentLine)
+		lineTokens, err := lineTokenizer.Scan()
 		if err != nil {
 			return nil, err
 		}
@@ -36,24 +38,150 @@ func (t Tokenizer) Scan(reader io.Reader) ([]token.Token, error) {
 			Cause: err,
 		}
 	}
-	tokens = append(tokens, token.GetEOF())
+	tokens = append(tokens, GetEOF())
 	return tokens, nil
 }
 
-func (t Tokenizer) ScanLine(line string, lineNumber int) ([]token.Token, error) {
-	lineTokens := make([]token.Token, 0)
-	splittedSeq := strings.SplitSeq(line, " ") // TODO: replace with character by character (1+1 won't work)
-	for potentialToken := range splittedSeq {
-		token, err := token.GetToken(potentialToken)
+type LineTokenizer struct {
+	source []rune
+	current int
+	line int
+	file string
+}
+
+func (t *LineTokenizer) Scan() ([]Token, error) {
+	tokens := make([]Token, 0)
+	for !t.isEnd() {
+		potentialToken := t.advance()
+		if unicode.IsSpace(potentialToken) {
+			continue
+		}
+		token, err := t.token(potentialToken)
 		if err != nil {
 			return nil, TokenizerError{
-				File: t.File,
-				Line: lineNumber,
-				Message: "Failed to recognize token",
+				File: t.file,
+				Line: t.line,
+				Message: fmt.Sprintf("Failed to recognize token %d:%d. token: %v", t.line, t.current, t.previous()),
 				Cause: err,
 			}
 		}
-		lineTokens = append(lineTokens, token)
+		if token.TokenType == EOL {
+			return tokens, nil
+		}
+		tokens = append(tokens, token)
 	}
-	return lineTokens, nil
+	return tokens, nil
 }
+
+func (t *LineTokenizer) token(val rune) (Token, error) {
+	switch val {
+	case '+':
+		return Token{TokenType: Plus, Value: nil}, nil
+	case '-':
+		return Token{TokenType: Minus, Value: nil}, nil
+	case '*':
+		return Token{TokenType: Star, Value: nil}, nil
+	case '%':
+		return Token{TokenType: Percent, Value: nil}, nil
+	case '(':
+		return Token{TokenType: LeftParen, Value: nil}, nil
+	case ')':
+		return Token{TokenType: RightParen, Value: nil}, nil
+	case '{':
+		return Token{TokenType: LeftBrace, Value: nil}, nil
+	case '}':
+		return Token{TokenType: RightBrace, Value: nil}, nil
+	case '/':
+		if t.match('/') {
+			return Token{TokenType: EOL, Value: nil}, nil
+		}
+		return Token{TokenType: Slash, Value: nil}, nil
+	case '!':
+		if t.match('=') {
+			return Token{TokenType: BangEqual, Value: nil}, nil
+		}
+		return Token{TokenType: Bang, Value: nil}, nil
+	case '>':
+		if t.match('=') {
+			return Token{TokenType: GreaterEqual, Value: nil}, nil
+		}
+		return Token{TokenType: Greater, Value: nil}, nil
+	case '<':
+		if t.match('=') {
+			return Token{TokenType: LessEqual, Value: nil}, nil
+		}
+		return Token{TokenType: Less, Value: nil}, nil
+	case '=':
+		if t.match('=') {
+			return Token{TokenType: EqualEqual, Value: nil}, nil
+		}
+		return Token{TokenType: EqualEqual, Value: nil}, nil
+	default:
+		if unicode.IsDigit(val) {
+			return t.integer()
+		}
+		if unicode.IsLetter(val) {
+			return t.keywordOrIdentifier(val)
+		}
+	}
+	return Token{}, fmt.Errorf("Unrecongized token %v, position: %v", val, t.current)
+}
+
+func (t *LineTokenizer) integer() (Token, error) {
+    num := []rune{t.previous()}
+    for !t.isEnd() && unicode.IsDigit(t.peek()) {
+        num = append(num, t.advance())
+    }
+    intValue, err := strconv.Atoi(string(num))
+    if err != nil {
+        return Token{}, err
+    }
+    return Token{TokenType: Integer, Value: intValue}, nil
+}
+
+func (t *LineTokenizer) keywordOrIdentifier(val rune) (Token, error) {
+    wordRunes := []rune{val}
+    for !t.isEnd() && (unicode.IsLetter(t.peek()) || unicode.IsDigit(t.peek())) {
+        wordRunes = append(wordRunes, t.advance())
+    }
+	word := string(wordRunes)
+	switch word {
+	case "true":
+	return Token{TokenType: Bool, Value: true}, nil
+	case "false":
+	return Token{TokenType: Bool, Value: false}, nil
+	}
+	return Token{}, fmt.Errorf("unrecognized token %v", word)
+}
+
+func (t *LineTokenizer) match(val rune) bool {
+	if t.isEnd() {
+		return false
+	}
+	current := t.peek()
+	if current == val {
+		t.advance()
+		return true
+	}
+	return false
+}
+
+func (t *LineTokenizer) advance() rune {
+	if !t.isEnd() {
+		t.current++
+	}
+	return t.previous()
+}
+
+func (t *LineTokenizer) peek() rune {
+	return t.source[t.current]
+}
+
+func (t *LineTokenizer) previous() rune {
+	return t.source[t.current-1]
+}
+
+func (t *LineTokenizer) isEnd() bool {
+	return len(t.source) <= t.current
+}
+
