@@ -7,8 +7,10 @@ import (
 	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
-type Declaration interface {
-	DeclarationNode()
+type Expression any
+
+type Statement interface{
+	Statement()
 }
 
 type VarDeclaration struct {
@@ -16,25 +18,27 @@ type VarDeclaration struct {
 	Expr Expression
 }
 
-func (d VarDeclaration) DeclarationNode() {}
+func (d VarDeclaration) Statement() {}
 
-type Expression any
-
-type Statement interface{
-	DeclarationNode()
+type VarAssignment struct {
+	Identifier string
+	Expr Expression
 }
+
+func (d VarAssignment) Statement() {}
+
 
 type ExprStatement struct {
 	Expr Expression
 }
 
-func (s ExprStatement) DeclarationNode() {}
+func (s ExprStatement) Statement() {}
 
 type PrintStatement struct {
 	Expr Expression
 }
 
-func (s PrintStatement) DeclarationNode() {}
+func (s PrintStatement) Statement() {}
 
 type IntegerLiteral struct {
 	Value int
@@ -69,8 +73,8 @@ func NewParser(tokens []token.Token) *Parser {
 }
 
 
-func (p *Parser) Parse() ([]Declaration, error) {
-	declarations := make([]Declaration, 0)
+func (p *Parser) Parse() ([]Statement, error) {
+	declarations := make([]Statement, 0)
 	for !p.isEOF() {
 		statement, err := p.declaration()
 		if err != nil {
@@ -82,14 +86,18 @@ func (p *Parser) Parse() ([]Declaration, error) {
 }
 
 
-func (p *Parser) declaration() (Declaration, error) {
-	if p.match(token.Var) {
+func (p *Parser) declaration() (Statement, error) {
+	switch {
+	case p.match(token.Var):
 		return p.varDeclaration()
+	case p.match(token.Identifier):
+		return p.assignment()
+	default:
+		return p.statement()
 	}
-	return p.statement()
 }
 
-func (p *Parser) varDeclaration() (Declaration, error) {
+func (p *Parser) varDeclaration() (Statement, error) {
 	if !p.match(token.Identifier) {
 		return VarDeclaration{}, fmt.Errorf("Expected identifier")
 	}
@@ -104,9 +112,23 @@ func (p *Parser) varDeclaration() (Declaration, error) {
 	}
 	err = p.consume(token.Semicolon)
 	if err != nil {
-		return ExprStatement{}, err
+		return VarDeclaration{}, err
 	}
 	return VarDeclaration{Identifier: identifier, Expr: expr}, nil
+}
+
+func (p *Parser) assignment() (Statement, error) {
+	identifier := p.previous().Value.(string)
+	err := p.consume(token.Equal)
+	expr, err := p.expression()
+	if err != nil {
+		return VarAssignment{}, err
+	}
+	err = p.consume(token.Semicolon)
+	if err != nil {
+		return VarAssignment{}, err
+	}
+	return VarAssignment{Identifier: identifier, Expr: expr}, nil
 }
 
 func (p *Parser) statement() (Statement, error) {

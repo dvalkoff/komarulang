@@ -3,4 +3,6 @@ var boboa = -aboba * 2
 print(100 * aboba * boboa)
 var kokoa = true
 var komugi = false
+kokoa = false
+kokoa = true
 print(kokoa != komugi)

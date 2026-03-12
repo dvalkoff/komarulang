@@ -10,19 +10,22 @@ import (
 
 var globalVariables map[string]any = map[string]any{}
 
-func interpretDecl(decl parser.Declaration) {
-	switch typed := decl.(type) {
-	case parser.VarDeclaration:
-		identifier := typed.Identifier
-		value := evaluate(typed.Expr)
-		globalVariables[identifier] = value
-	case parser.Statement:
-		interpretStmt(typed)
-	}
-}
-
 func interpretStmt(stmt parser.Statement) {
 	switch typed := stmt.(type) {
+	case parser.VarDeclaration:
+		identifier := typed.Identifier
+		if _, ok := globalVariables[identifier]; ok {
+			panic(fmt.Sprintf("variable %v already exist", identifier))
+		}
+		value := evaluate(typed.Expr)
+		globalVariables[identifier] = value
+	case parser.VarAssignment:
+		identifier := typed.Identifier
+		if _, ok := globalVariables[identifier]; !ok {
+			panic(fmt.Sprintf("variable %v does not exist", identifier))
+		}
+		value := evaluate(typed.Expr)
+		globalVariables[identifier] = value
 	case parser.ExprStatement:
 		evaluate(typed.Expr)
 	case parser.PrintStatement:
@@ -119,6 +122,6 @@ func main() {
 		panic(err)
 	}
 	for _, decl := range prog {
-		interpretDecl(decl)
+		interpretStmt(decl)
 	}
 }
