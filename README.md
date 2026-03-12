@@ -37,7 +37,7 @@ go build ./cmd/interpreter/main.go
 ./main calculator.kl
 ```
 
-# Building a compiler (doesn't for now):
+# A compiler (temporarely outdated):
 ```
 go build ./cmd/compiler/arm/main.go
 ```
