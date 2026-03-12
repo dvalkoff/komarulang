@@ -8,44 +8,96 @@ import (
 	"github.com/dvalkoff/komarulang/tokenizer"
 )
 
-var globalVariables map[string]any = map[string]any{}
+type Environment struct {
+	data map[string]any
+	parent *Environment
+}
 
-func interpretStmt(stmt parser.Statement) {
+func NewEnvironment(parent *Environment) *Environment {
+	return &Environment{
+		data: make(map[string]any),
+		parent: parent,
+	}
+}
+
+func (e *Environment) Exists(key string) bool {
+	if e == nil {
+		return false
+	}
+	if _, ok := e.data[key]; ok {
+		return true
+	}
+	return e.parent.Exists(key)
+}
+
+func (e *Environment) Get(key string) (any, bool) {
+	if e == nil {
+		return nil, false
+	}
+	if val, ok := e.data[key]; ok {
+		return val, true
+	}
+	return e.parent.Get(key)
+}
+
+func (e *Environment) New(key string, val any) {
+	e.data[key] = val
+}
+
+func (e *Environment) Set(key string, val any) {
+	if _, ok := e.data[key]; ok {
+		e.data[key] = val
+		return
+	}
+	e.parent.Set(key, val)
+}
+
+
+func interpretStmt(env *Environment, stmt parser.Statement) {
 	switch typed := stmt.(type) {
+	case parser.Block:
+		interpretBlock(env, typed)
 	case parser.VarDeclaration:
 		identifier := typed.Identifier
-		if _, ok := globalVariables[identifier]; ok {
+		if env.Exists(identifier) {
 			panic(fmt.Sprintf("variable %v already exist", identifier))
 		}
-		value := evaluate(typed.Expr)
-		globalVariables[identifier] = value
+		value := evaluate(env, typed.Expr)
+		env.New(identifier, value)
 	case parser.VarAssignment:
 		identifier := typed.Identifier
-		if _, ok := globalVariables[identifier]; !ok {
+		if !env.Exists(identifier) {
 			panic(fmt.Sprintf("variable %v does not exist", identifier))
 		}
-		value := evaluate(typed.Expr)
-		globalVariables[identifier] = value
+		value := evaluate(env, typed.Expr)
+		env.Set(identifier, value)
 	case parser.ExprStatement:
-		evaluate(typed.Expr)
+		evaluate(env, typed.Expr)
 	case parser.PrintStatement:
-		result := evaluate(typed.Expr)
+		result := evaluate(env, typed.Expr)
 		fmt.Println(result)
 	}
 }
 
-func evaluate(ast parser.Expression) any {
+func interpretBlock(parentEnv *Environment, block parser.Block) {
+	env := NewEnvironment(parentEnv)
+	for _, stmt := range block.Stmts {
+		interpretStmt(env, stmt)
+	}
+}
+
+func evaluate(env *Environment, ast parser.Expression) any {
 	switch typed := ast.(type) {
 	case parser.BinaryExpression:
-		return evaluateBinaryOperation(evaluate(typed.Left), evaluate(typed.Right), typed.Operator)
+		return evaluateBinaryOperation(evaluate(env, typed.Left), evaluate(env, typed.Right), typed.Operator)
 	case parser.UnaryExpression:
-		return evaluateUnaryOperation(evaluate(typed.Right), typed.Operator)
+		return evaluateUnaryOperation(evaluate(env, typed.Right), typed.Operator)
 	case parser.BooleanLiteral:
 		return typed.Value
 	case parser.IntegerLiteral:
 		return typed.Value
 	case parser.IdentifierLiteral:
-		if value, ok := globalVariables[typed.Value]; ok {
+		if value, ok := env.Get(typed.Value); ok {
 			return value
 		} else {
 			panic(fmt.Sprintf("variable %v does not exist", typed.Value))
@@ -121,7 +173,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	env := NewEnvironment(nil)
 	for _, decl := range prog {
-		interpretStmt(decl)
+		interpretStmt(env, decl)
 	}
 }

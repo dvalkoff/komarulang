@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"slices"
 
 	token "github.com/dvalkoff/komarulang/tokenizer"
@@ -39,6 +38,12 @@ type PrintStatement struct {
 }
 
 func (s PrintStatement) Statement() {}
+
+type Block struct {
+	Stmts []Statement
+}
+
+func (s Block) Statement() {}
 
 type IntegerLiteral struct {
 	Value int
@@ -85,21 +90,52 @@ func (p *Parser) Parse() ([]Statement, error) {
 	return declarations, nil
 }
 
-
 func (p *Parser) declaration() (Statement, error) {
+	var stmt Statement
+	var err error
 	switch {
 	case p.match(token.Var):
-		return p.varDeclaration()
+		stmt, err = p.varDeclaration()
 	case p.match(token.Identifier):
-		return p.assignment()
+		stmt, err = p.assignment()
+	case p.match(token.LeftBrace):
+		stmt, err = p.block()
 	default:
-		return p.statement()
+		stmt, err = p.statement()
 	}
+	if err != nil {
+		return nil, err
+	}
+	err = p.consume(token.Semicolon)
+	if err != nil {
+		return nil, err
+	}
+	return stmt, nil
+}
+
+func (p *Parser) block() (Statement, error) {
+	stmts := make([]Statement, 0)
+	for !p.isEOF() && p.peek().TokenType != token.RightBrace {
+		stmt, err := p.declaration()
+		if err != nil {
+			return nil, err
+		}
+		stmts =append(stmts, stmt)
+	}
+
+	if p.isEOF() {
+		return nil, ParserError{Expected: token.RightBrace, Got: token.EOF}
+	}
+	err := p.consume(token.RightBrace)
+	if err != nil {
+		return nil, err
+	}
+	return Block{Stmts: stmts}, nil
 }
 
 func (p *Parser) varDeclaration() (Statement, error) {
 	if !p.match(token.Identifier) {
-		return VarDeclaration{}, fmt.Errorf("Expected identifier")
+		return VarDeclaration{}, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
 	}
 	identifier := p.previous().Value.(string)
 	err := p.consume(token.Equal)
@@ -107,10 +143,6 @@ func (p *Parser) varDeclaration() (Statement, error) {
 		return VarDeclaration{}, err
 	}
 	expr, err := p.expression()
-	if err != nil {
-		return VarDeclaration{}, err
-	}
-	err = p.consume(token.Semicolon)
 	if err != nil {
 		return VarDeclaration{}, err
 	}
@@ -121,10 +153,6 @@ func (p *Parser) assignment() (Statement, error) {
 	identifier := p.previous().Value.(string)
 	err := p.consume(token.Equal)
 	expr, err := p.expression()
-	if err != nil {
-		return VarAssignment{}, err
-	}
-	err = p.consume(token.Semicolon)
 	if err != nil {
 		return VarAssignment{}, err
 	}
@@ -139,25 +167,18 @@ func (p *Parser) statement() (Statement, error) {
 	if err != nil {
 		return ExprStatement{}, err
 	}
-	err = p.consume(token.Semicolon)
-	if err != nil {
-		return ExprStatement{}, err
-	}
 	return ExprStatement{Expr: expression}, nil
 }
 
 func (p *Parser) printStatement() (PrintStatement, error) {
 	if !p.match(token.LeftParen) {
-		return PrintStatement{}, fmt.Errorf("Expected %v, got %v", token.LeftParen, p.peek().TokenType)
+		return PrintStatement{}, ParserError{Expected: token.LeftParen, Got: p.peek().TokenType}
 	}
 	expression, err := p.expression()
 	if err != nil {
 		return PrintStatement{}, err
 	}
 	if err := p.consume(token.RightParen); err != nil {
-		return PrintStatement{}, err
-	}
-	if err := p.consume(token.Semicolon); err != nil {
 		return PrintStatement{}, err
 	}
 	return PrintStatement{Expr: expression}, nil
@@ -253,7 +274,7 @@ func (p *Parser) primary() (Expression, error) {
 		identifier := p.previous().Value.(string)
 		return IdentifierLiteral{Value: identifier}, nil
 	}
-	return nil, fmt.Errorf("Expected %v. got: %v", token.Integer, p.peek().TokenType)
+	return nil, ParserError{Expected: token.Integer, Got: p.peek().TokenType}
 }
 
 func (p *Parser) consume(tokenType token.TokenType) error {
@@ -261,7 +282,7 @@ func (p *Parser) consume(tokenType token.TokenType) error {
 		p.advance()
 		return nil
 	}
-	return fmt.Errorf("Expected %v. got %v", tokenType, p.peek().TokenType)
+	return ParserError{Expected: tokenType, Got: p.peek().TokenType}
 }
 
 func (p *Parser) match(types ...token.TokenType) bool {

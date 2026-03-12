@@ -1,8 +1,16 @@
-var aboba = 123
-var boboa = -aboba * 2
-print(100 * aboba * boboa)
-var kokoa = true
-var komugi = false
-kokoa = false
-kokoa = true
-print(kokoa != komugi)
+var a = 1
+
+print(a)
+
+{
+    print(a)
+    a = 4
+    var b = 1
+    print(b +1)
+    {
+        b = b + 1
+    }
+    print(b)
+}
+
+print(a)
