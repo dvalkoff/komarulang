@@ -35,7 +35,6 @@ func evaluateUnaryOperation(rightOperand any, operator tokenizer.TokenType) any 
 }
 
 func evaluateBinaryOperation(leftOperand, rightOperand any, operator tokenizer.TokenType) any {
-	
 	switch operator {
 	case tokenizer.Plus:
 		left, right := leftOperand.(int), rightOperand.(int)

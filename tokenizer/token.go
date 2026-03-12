@@ -34,7 +34,7 @@ type TokenType int
 
 type Token struct {
 	TokenType TokenType
-	Value any
+	Value     any
 }
 
 func GetEOF() Token {

@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"slices"
 	"fmt"
+	"slices"
 
 	token "github.com/dvalkoff/komarulang/tokenizer"
 )
@@ -25,7 +25,7 @@ type BinaryExpression struct {
 
 type UnaryExpression struct {
 	Operator token.TokenType
-	Right Expression
+	Right    Expression
 }
 
 type Parser struct {
@@ -123,7 +123,7 @@ func (p *Parser) primary() (Expression, error) {
 		}
 		return expression, nil
 	}
- 	return nil, fmt.Errorf("Expected %v. got: %v", token.Integer, p.peek().TokenType)
+	return nil, fmt.Errorf("Expected %v. got: %v", token.Integer, p.peek().TokenType)
 }
 
 func (p *Parser) consume(tokenType token.TokenType) error {
@@ -148,7 +148,7 @@ func (p *Parser) checkType(tokenType token.TokenType) bool {
 
 func (p *Parser) advance() token.Token {
 	if !p.isEOF() {
-		p.current++	
+		p.current++
 	}
 	return p.previous()
 }

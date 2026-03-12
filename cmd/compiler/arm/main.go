@@ -14,13 +14,13 @@ import (
 
 const (
 	outputFile = "output"
-	inputFile = "input"
+	inputFile  = "input"
 )
 
 func getCompilerParameters() map[string]string {
 	parameters := map[string]string{}
 	args := os.Args
-	for i := 0; i < len(args) - 1; {
+	for i := 0; i < len(args)-1; {
 		arg := args[i]
 		switch arg {
 		case "-o":
@@ -29,7 +29,7 @@ func getCompilerParameters() map[string]string {
 		}
 		i++
 	}
-	parameters[inputFile] = args[len(args) - 1]
+	parameters[inputFile] = args[len(args)-1]
 	if _, ok := parameters[outputFile]; !ok {
 		parameters[outputFile] = "out"
 	}
@@ -37,30 +37,30 @@ func getCompilerParameters() map[string]string {
 }
 
 func assemble(asmFile, objFile string) error {
-    cmd := exec.Command("as", "-o", objFile, asmFile)
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    return cmd.Run()
+	cmd := exec.Command("as", "-o", objFile, asmFile)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func link(objFile, outFile string) error {
-    xcrun := exec.Command("xcrun", "-sdk", "macosx", "--show-sdk-path")
-    sdkPathBytes, err := xcrun.Output()
-    if err != nil {
-        return fmt.Errorf("xcrun failed: %w", err)
-    }
-    sdkPath := strings.TrimSpace(string(sdkPathBytes))
+	xcrun := exec.Command("xcrun", "-sdk", "macosx", "--show-sdk-path")
+	sdkPathBytes, err := xcrun.Output()
+	if err != nil {
+		return fmt.Errorf("xcrun failed: %w", err)
+	}
+	sdkPath := strings.TrimSpace(string(sdkPathBytes))
 
-    cmd := exec.Command("ld",
-        "-o", outFile,
-        objFile,
-        "-lSystem",
-        "-syslibroot", sdkPath,
-        "-e", "_main",
-    )
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    return cmd.Run()
+	cmd := exec.Command("ld",
+		"-o", outFile,
+		objFile,
+		"-lSystem",
+		"-syslibroot", sdkPath,
+		"-e", "_main",
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func main() {
@@ -80,9 +80,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	codegen := codegen.CodeGenerator{}
-	as := codegen.Generate(ast)
-	
+	codegen := codegen.NewCodeGenerator()
+	if _, err := codegen.CompileExpr(ast, 0); err != nil {
+		panic(err)
+	}
+	as := codegen.Prog.String()
+
 	assemblyFileName := fmt.Sprintf("%v.s", params[outputFile])
 	objectFileName := fmt.Sprintf("%v.o", params[outputFile])
 	binaryFileName := params[outputFile]
@@ -104,11 +107,11 @@ func main() {
 
 	if err := assemble(assemblyFileName, objectFileName); err != nil {
 		panic(fmt.Sprintf("assembly failed: %v\n", err))
-    }
+	}
 
-    if err := link(objectFileName, binaryFileName); err != nil {
+	if err := link(objectFileName, binaryFileName); err != nil {
 		panic(fmt.Sprintf("linking failed: %v\n", err))
-    }
+	}
 
-    fmt.Printf("Build successful: ./%v\n", binaryFileName)
+	fmt.Printf("Build successful: ./%v\n", binaryFileName)
 }

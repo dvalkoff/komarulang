@@ -19,10 +19,10 @@ func (t Tokenizer) Scan(reader io.Reader) ([]Token, error) {
 	for ; scanner.Scan(); currentLine++ {
 		line := scanner.Text()
 		lineTokenizer := LineTokenizer{
-			source: []rune(line), 
+			source:  []rune(line),
 			current: 0,
-			line: currentLine,
-			file: t.File,
+			line:    currentLine,
+			file:    t.File,
 		}
 		lineTokens, err := lineTokenizer.Scan()
 		if err != nil {
@@ -32,10 +32,10 @@ func (t Tokenizer) Scan(reader io.Reader) ([]Token, error) {
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, TokenizerError{
-			File: t.File,
-			Line: currentLine,
+			File:    t.File,
+			Line:    currentLine,
 			Message: "Tokenization failed",
-			Cause: err,
+			Cause:   err,
 		}
 	}
 	tokens = append(tokens, GetEOF())
@@ -43,10 +43,10 @@ func (t Tokenizer) Scan(reader io.Reader) ([]Token, error) {
 }
 
 type LineTokenizer struct {
-	source []rune
+	source  []rune
 	current int
-	line int
-	file string
+	line    int
+	file    string
 }
 
 func (t *LineTokenizer) Scan() ([]Token, error) {
@@ -59,10 +59,10 @@ func (t *LineTokenizer) Scan() ([]Token, error) {
 		token, err := t.token(potentialToken)
 		if err != nil {
 			return nil, TokenizerError{
-				File: t.file,
-				Line: t.line,
+				File:    t.file,
+				Line:    t.line,
 				Message: fmt.Sprintf("Failed to recognize token %d:%d. token: %v", t.line, t.current, t.previous()),
-				Cause: err,
+				Cause:   err,
 			}
 		}
 		if token.TokenType == EOL {
@@ -128,28 +128,28 @@ func (t *LineTokenizer) token(val rune) (Token, error) {
 }
 
 func (t *LineTokenizer) integer() (Token, error) {
-    num := []rune{t.previous()}
-    for !t.isEnd() && unicode.IsDigit(t.peek()) {
-        num = append(num, t.advance())
-    }
-    intValue, err := strconv.Atoi(string(num))
-    if err != nil {
-        return Token{}, err
-    }
-    return Token{TokenType: Integer, Value: intValue}, nil
+	num := []rune{t.previous()}
+	for !t.isEnd() && unicode.IsDigit(t.peek()) {
+		num = append(num, t.advance())
+	}
+	intValue, err := strconv.Atoi(string(num))
+	if err != nil {
+		return Token{}, err
+	}
+	return Token{TokenType: Integer, Value: intValue}, nil
 }
 
 func (t *LineTokenizer) keywordOrIdentifier(val rune) (Token, error) {
-    wordRunes := []rune{val}
-    for !t.isEnd() && (unicode.IsLetter(t.peek()) || unicode.IsDigit(t.peek())) {
-        wordRunes = append(wordRunes, t.advance())
-    }
+	wordRunes := []rune{val}
+	for !t.isEnd() && (unicode.IsLetter(t.peek()) || unicode.IsDigit(t.peek())) {
+		wordRunes = append(wordRunes, t.advance())
+	}
 	word := string(wordRunes)
 	switch word {
 	case "true":
-	return Token{TokenType: Bool, Value: true}, nil
+		return Token{TokenType: Bool, Value: true}, nil
 	case "false":
-	return Token{TokenType: Bool, Value: false}, nil
+		return Token{TokenType: Bool, Value: false}, nil
 	}
 	return Token{}, fmt.Errorf("unrecognized token %v", word)
 }
@@ -184,4 +184,3 @@ func (t *LineTokenizer) previous() rune {
 func (t *LineTokenizer) isEnd() bool {
 	return len(t.source) <= t.current
 }
-
