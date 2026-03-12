@@ -1,5 +1,7 @@
 package tokenizer
 
+import "slices"
+
 const (
 	// operators
 	Plus = iota
@@ -12,6 +14,7 @@ const (
 	RightParen
 	LeftBrace
 	RightBrace
+	Semicolon
 
 	Bang
 	BangEqual
@@ -25,12 +28,18 @@ const (
 	// literals
 	Integer
 	Bool
+	Identifier
+	Print // Temporart until gets replaced by stdlib
 
 	EOF
 	EOL
 )
 
 type TokenType int
+
+func (t TokenType) Match(types ...TokenType) bool {
+	return slices.Contains(types, t)
+}
 
 type Token struct {
 	TokenType TokenType

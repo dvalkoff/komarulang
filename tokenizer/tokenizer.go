@@ -12,7 +12,7 @@ type Tokenizer struct {
 	File string
 }
 
-func (t Tokenizer) Scan(reader io.Reader) ([]Token, error) {
+func (t *Tokenizer) Scan(reader io.Reader) ([]Token, error) {
 	scanner := bufio.NewScanner(reader)
 	currentLine := 0
 	tokens := make([]Token, 0)
@@ -28,6 +28,7 @@ func (t Tokenizer) Scan(reader io.Reader) ([]Token, error) {
 		if err != nil {
 			return nil, err
 		}
+		lineTokens = t.addSemicolon(lineTokens)
 		tokens = append(tokens, lineTokens...)
 	}
 	if err := scanner.Err(); err != nil {
@@ -40,6 +41,17 @@ func (t Tokenizer) Scan(reader io.Reader) ([]Token, error) {
 	}
 	tokens = append(tokens, GetEOF())
 	return tokens, nil
+}
+
+func (t *Tokenizer) addSemicolon(lineTokens []Token) []Token {
+	if len(lineTokens) == 0 {
+		return lineTokens
+	}
+	lastTokenOnLine := lineTokens[len(lineTokens) -1]
+	if lastTokenOnLine.TokenType.Match(Identifier, Print, Integer, Bool, RightBrace, RightParen, RightBrace) {
+		lineTokens = append(lineTokens, Token{TokenType: Semicolon, Value: nil})
+	}
+	return lineTokens
 }
 
 type LineTokenizer struct {
@@ -91,6 +103,8 @@ func (t *LineTokenizer) token(val rune) (Token, error) {
 		return Token{TokenType: LeftBrace, Value: nil}, nil
 	case '}':
 		return Token{TokenType: RightBrace, Value: nil}, nil
+	case ';':
+		return Token{TokenType: Semicolon, Value: nil}, nil
 	case '/':
 		if t.match('/') {
 			return Token{TokenType: EOL, Value: nil}, nil
@@ -150,8 +164,10 @@ func (t *LineTokenizer) keywordOrIdentifier(val rune) (Token, error) {
 		return Token{TokenType: Bool, Value: true}, nil
 	case "false":
 		return Token{TokenType: Bool, Value: false}, nil
+	case "print":
+		return Token{TokenType: Print, Value: nil}, nil
 	}
-	return Token{}, fmt.Errorf("unrecognized token %v", word)
+	return Token{TokenType: Identifier, Value: word}, nil
 }
 
 func (t *LineTokenizer) match(val rune) bool {

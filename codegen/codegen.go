@@ -50,6 +50,8 @@ func NewCodeGenerator() *CodeGenerator {
 
 func (c *CodeGenerator) CompileExpr(expr parser.Expression, reg Register) (Register, error) {
 	switch e := expr.(type) {
+	case parser.Statement:
+		return c.CompileExpr(e.Expr, reg)
 	case parser.IntegerLiteral:
 		instructions := c.loadInt(reg, e.Value)
 		c.Prog.Emit(instructions...)

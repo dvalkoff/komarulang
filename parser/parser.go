@@ -7,7 +7,19 @@ import (
 	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
+const(
+	ExprStatement StatementType = iota
+	PrintStatement
+)
+
+type StatementType int
+
 type Expression any
+
+type Statement struct {
+	Type StatementType
+	Expr Expression
+}
 
 type IntegerLiteral struct {
 	Value int
@@ -37,7 +49,51 @@ func NewParser(tokens []token.Token) *Parser {
 	return &Parser{tokens: tokens, current: 0}
 }
 
-func (p *Parser) Expression() (Expression, error) {
+func (p *Parser) Parse() ([]Statement, error) {
+	statements := make([]Statement, 0)
+	for !p.isEOF() {
+		statement, err := p.statement()
+		if err != nil {
+			return nil, err
+		}
+		statements = append(statements, statement)
+	}
+	return statements, nil
+}
+
+func (p *Parser) statement() (Statement, error) {
+	if p.match(token.Print) {
+		return p.printStatement()
+	}
+	expression, err := p.expression();
+	if err != nil {
+		return Statement{}, err
+	}
+	err = p.consume(token.Semicolon)
+	if err != nil {
+		return Statement{}, err
+	}
+	return Statement{Type: ExprStatement, Expr: expression}, nil
+}
+
+func (p *Parser) printStatement() (Statement, error) {
+	if !p.match(token.LeftParen) {
+		return Statement{}, fmt.Errorf("Expected %v, got %v", token.LeftParen, p.peek().TokenType)
+	}
+	expression, err := p.expression()
+	if err != nil {
+		return Statement{}, err
+	}
+	if err := p.consume(token.RightParen); err != nil {
+		return Statement{}, err
+	}
+	if err := p.consume(token.Semicolon); err != nil {
+		return Statement{}, err
+	}
+	return Statement{Type: PrintStatement, Expr: expression}, nil
+}
+
+func (p *Parser) expression() (Expression, error) {
 	return p.comparison()
 }
 
@@ -114,7 +170,7 @@ func (p *Parser) primary() (Expression, error) {
 		return BooleanLiteral{boolVal}, nil
 	}
 	if p.match(token.LeftParen) {
-		expression, err := p.Expression()
+		expression, err := p.expression()
 		if err != nil {
 			return nil, err
 		}

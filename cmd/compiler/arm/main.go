@@ -76,15 +76,17 @@ func main() {
 		panic(err)
 	}
 	p := parser.NewParser(tokens)
-	ast, err := p.Expression()
+	stmts, err := p.Parse()
 	if err != nil {
 		panic(err)
 	}
 	codegen := codegen.NewCodeGenerator()
-	if _, err := codegen.CompileExpr(ast, 0); err != nil {
-		panic(err)
+	for _, stmt := range stmts {
+		if _, err := codegen.CompileExpr(stmt, 0); err != nil {
+			panic(err)
+		}
 	}
-	as := codegen.Prog.String()
+	assemblyCode := codegen.Prog.String()
 
 	assemblyFileName := fmt.Sprintf("%v.s", params[outputFile])
 	objectFileName := fmt.Sprintf("%v.o", params[outputFile])
@@ -96,7 +98,7 @@ func main() {
 	}
 	defer assemblyFile.Close()
 	writer := bufio.NewWriter(assemblyFile)
-	_, err = writer.WriteString(as)
+	_, err = writer.WriteString(assemblyCode)
 	if err != nil {
 		panic(err)
 	}

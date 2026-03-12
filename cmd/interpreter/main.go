@@ -8,6 +8,16 @@ import (
 	"github.com/dvalkoff/komarulang/tokenizer"
 )
 
+func interpretStmt(stmt parser.Statement) {
+	switch stmt.Type {
+	case parser.ExprStatement:
+		evaluate(stmt.Expr)
+	case parser.PrintStatement:
+		result := evaluate(stmt.Expr)
+		fmt.Println(result)
+	}
+}
+
 func evaluate(ast parser.Expression) any {
 	switch typed := ast.(type) {
 	case parser.BinaryExpression:
@@ -85,9 +95,12 @@ func main() {
 		panic(err)
 	}
 	p := parser.NewParser(tokens)
-	tree, err := p.Expression()
+	prog, err := p.Parse()
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(evaluate(tree))
+	for _, stmt := range prog {
+		interpretStmt(stmt)
+	}
+	panic("",)
 }
