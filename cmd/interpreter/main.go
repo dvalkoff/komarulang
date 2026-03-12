@@ -76,6 +76,8 @@ func interpretStmt(env *Environment, stmt parser.Statement) {
 	case parser.PrintStatement:
 		result := evaluate(env, typed.Expr)
 		fmt.Println(result)
+	case parser.IfStatement:
+		interpretIf(env, typed)
 	}
 }
 
@@ -83,6 +85,20 @@ func interpretBlock(parentEnv *Environment, block parser.Block) {
 	env := NewEnvironment(parentEnv)
 	for _, stmt := range block.Stmts {
 		interpretStmt(env, stmt)
+	}
+}
+
+func interpretIf(env *Environment, ifStmt parser.IfStatement) {
+	conditionValue := evaluate(env, ifStmt.Condition)
+	cond, ok := conditionValue.(bool)
+	if !ok {
+		panic(fmt.Sprintf("type mismatch: expected <boolean>, got %t", conditionValue))
+	}
+	if cond {
+		interpretStmt(env, ifStmt.Block)
+	}
+	if !cond && ifStmt.ElseBlock != nil {
+		interpretStmt(env, ifStmt.ElseBlock)
 	}
 }
 

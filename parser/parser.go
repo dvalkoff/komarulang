@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"slices"
 
 	token "github.com/dvalkoff/komarulang/tokenizer"
@@ -44,6 +45,14 @@ type Block struct {
 }
 
 func (s Block) Statement() {}
+
+type IfStatement struct {
+	Condition Expression
+	Block Statement
+	ElseBlock Statement
+}
+
+func (i IfStatement) Statement() {}
 
 type IntegerLiteral struct {
 	Value int
@@ -100,6 +109,8 @@ func (p *Parser) declaration() (Statement, error) {
 		stmt, err = p.assignment()
 	case p.match(token.LeftBrace):
 		stmt, err = p.block()
+	case p.match(token.If):
+		stmt, err = p.ifStatement()
 	default:
 		stmt, err = p.statement()
 	}
@@ -120,7 +131,7 @@ func (p *Parser) block() (Statement, error) {
 		if err != nil {
 			return nil, err
 		}
-		stmts =append(stmts, stmt)
+		stmts = append(stmts, stmt)
 	}
 
 	if p.isEOF() {
@@ -131,6 +142,37 @@ func (p *Parser) block() (Statement, error) {
 		return nil, err
 	}
 	return Block{Stmts: stmts}, nil
+}
+
+func (p *Parser) ifStatement() (Statement, error) {
+	condition, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+	if !p.match(token.LeftBrace) {
+		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek().TokenType}
+	}
+	block, err := p.block()
+	if err != nil {
+		return nil, err
+	}
+	var elseBlock Statement = nil 
+	if p.match(token.Else) {
+		if p.match(token.If) {
+			elseBlock, err = p.ifStatement()
+		} else if p.match(token.LeftBrace) {
+			elseBlock, err = p.block()
+		} else {
+			err = errors.Join(
+				ParserError{Expected: token.LeftBrace, Got: p.peek().TokenType},
+				ParserError{Expected: token.If, Got: p.peek().TokenType},
+			)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return IfStatement{Condition: condition, Block: block, ElseBlock: elseBlock}, nil
 }
 
 func (p *Parser) varDeclaration() (Statement, error) {

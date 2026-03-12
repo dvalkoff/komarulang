@@ -1,16 +1,26 @@
-var a = 1
+// comment line
+var a = 1 // variable declaration, integer
+var d = true // bool
 
-print(a)
+a = 2 // reassignment
 
-{
-    print(a)
-    a = 4
-    var b = 1
-    print(b +1)
-    {
-        b = b + 1
-    }
-    print(b)
+{ // code block. variables are local
+    // arithmetic operations
+    var b = 3
+    var c = b + a
+    c = c * a
+    c = c / a
+    c = -c
+    c = c % 2
 }
 
-print(a)
+print(a) // stdout builtin "function". techically it's a keyword for now
+
+// if else statements full support
+if a > 5 {
+    print(a)
+} else if d {
+    print(d)
+} else {
+    print(false)
+}

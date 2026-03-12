@@ -68,6 +68,10 @@ func tokenToString(t token.TokenType) string {
 		return "<eof>"
 	case token.EOL:
 		return "<end of line>"
+	case token.If:
+		return "<if>"
+	case token.Else:
+		return "<else>"
 	}
 	return ""
 }

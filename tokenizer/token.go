@@ -33,6 +33,8 @@ const (
 
 	// keywords
 	Var
+	If
+	Else
 
 	EOF
 	EOL
