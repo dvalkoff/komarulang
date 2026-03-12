@@ -8,12 +8,25 @@ import (
 	"github.com/dvalkoff/komarulang/tokenizer"
 )
 
+var globalVariables map[string]any = map[string]any{}
+
+func interpretDecl(decl parser.Declaration) {
+	switch typed := decl.(type) {
+	case parser.VarDeclaration:
+		identifier := typed.Identifier
+		value := evaluate(typed.Expr)
+		globalVariables[identifier] = value
+	case parser.Statement:
+		interpretStmt(typed)
+	}
+}
+
 func interpretStmt(stmt parser.Statement) {
-	switch stmt.Type {
+	switch typed := stmt.(type) {
 	case parser.ExprStatement:
-		evaluate(stmt.Expr)
+		evaluate(typed.Expr)
 	case parser.PrintStatement:
-		result := evaluate(stmt.Expr)
+		result := evaluate(typed.Expr)
 		fmt.Println(result)
 	}
 }
@@ -28,6 +41,12 @@ func evaluate(ast parser.Expression) any {
 		return typed.Value
 	case parser.IntegerLiteral:
 		return typed.Value
+	case parser.IdentifierLiteral:
+		if value, ok := globalVariables[typed.Value]; ok {
+			return value
+		} else {
+			panic(fmt.Sprintf("variable %v does not exist", typed.Value))
+		}
 	}
 	return 0
 }
@@ -99,8 +118,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	for _, stmt := range prog {
-		interpretStmt(stmt)
+	for _, decl := range prog {
+		interpretDecl(decl)
 	}
-	panic("",)
 }

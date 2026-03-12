@@ -31,6 +31,9 @@ const (
 	Identifier
 	Print // Temporart until gets replaced by stdlib
 
+	// keywords
+	Var
+
 	EOF
 	EOL
 )

@@ -7,19 +7,34 @@ import (
 	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
-const(
-	ExprStatement StatementType = iota
-	PrintStatement
-)
+type Declaration interface {
+	DeclarationNode()
+}
 
-type StatementType int
+type VarDeclaration struct {
+	Identifier string
+	Expr Expression
+}
+
+func (d VarDeclaration) DeclarationNode() {}
 
 type Expression any
 
-type Statement struct {
-	Type StatementType
+type Statement interface{
+	DeclarationNode()
+}
+
+type ExprStatement struct {
 	Expr Expression
 }
+
+func (s ExprStatement) DeclarationNode() {}
+
+type PrintStatement struct {
+	Expr Expression
+}
+
+func (s PrintStatement) DeclarationNode() {}
 
 type IntegerLiteral struct {
 	Value int
@@ -27,6 +42,10 @@ type IntegerLiteral struct {
 
 type BooleanLiteral struct {
 	Value bool
+}
+
+type IdentifierLiteral struct {
+	Value string
 }
 
 type BinaryExpression struct {
@@ -49,16 +68,45 @@ func NewParser(tokens []token.Token) *Parser {
 	return &Parser{tokens: tokens, current: 0}
 }
 
-func (p *Parser) Parse() ([]Statement, error) {
-	statements := make([]Statement, 0)
+
+func (p *Parser) Parse() ([]Declaration, error) {
+	declarations := make([]Declaration, 0)
 	for !p.isEOF() {
-		statement, err := p.statement()
+		statement, err := p.declaration()
 		if err != nil {
 			return nil, err
 		}
-		statements = append(statements, statement)
+		declarations = append(declarations, statement)
 	}
-	return statements, nil
+	return declarations, nil
+}
+
+
+func (p *Parser) declaration() (Declaration, error) {
+	if p.match(token.Var) {
+		return p.varDeclaration()
+	}
+	return p.statement()
+}
+
+func (p *Parser) varDeclaration() (Declaration, error) {
+	if !p.match(token.Identifier) {
+		return VarDeclaration{}, fmt.Errorf("Expected identifier")
+	}
+	identifier := p.previous().Value.(string)
+	err := p.consume(token.Equal)
+	if err != nil {
+		return VarDeclaration{}, err
+	}
+	expr, err := p.expression()
+	if err != nil {
+		return VarDeclaration{}, err
+	}
+	err = p.consume(token.Semicolon)
+	if err != nil {
+		return ExprStatement{}, err
+	}
+	return VarDeclaration{Identifier: identifier, Expr: expr}, nil
 }
 
 func (p *Parser) statement() (Statement, error) {
@@ -67,30 +115,30 @@ func (p *Parser) statement() (Statement, error) {
 	}
 	expression, err := p.expression();
 	if err != nil {
-		return Statement{}, err
+		return ExprStatement{}, err
 	}
 	err = p.consume(token.Semicolon)
 	if err != nil {
-		return Statement{}, err
+		return ExprStatement{}, err
 	}
-	return Statement{Type: ExprStatement, Expr: expression}, nil
+	return ExprStatement{Expr: expression}, nil
 }
 
-func (p *Parser) printStatement() (Statement, error) {
+func (p *Parser) printStatement() (PrintStatement, error) {
 	if !p.match(token.LeftParen) {
-		return Statement{}, fmt.Errorf("Expected %v, got %v", token.LeftParen, p.peek().TokenType)
+		return PrintStatement{}, fmt.Errorf("Expected %v, got %v", token.LeftParen, p.peek().TokenType)
 	}
 	expression, err := p.expression()
 	if err != nil {
-		return Statement{}, err
+		return PrintStatement{}, err
 	}
 	if err := p.consume(token.RightParen); err != nil {
-		return Statement{}, err
+		return PrintStatement{}, err
 	}
 	if err := p.consume(token.Semicolon); err != nil {
-		return Statement{}, err
+		return PrintStatement{}, err
 	}
-	return Statement{Type: PrintStatement, Expr: expression}, nil
+	return PrintStatement{Expr: expression}, nil
 }
 
 func (p *Parser) expression() (Expression, error) {
@@ -178,6 +226,10 @@ func (p *Parser) primary() (Expression, error) {
 			return nil, err
 		}
 		return expression, nil
+	}
+	if p.match(token.Identifier) {
+		identifier := p.previous().Value.(string)
+		return IdentifierLiteral{Value: identifier}, nil
 	}
 	return nil, fmt.Errorf("Expected %v. got: %v", token.Integer, p.peek().TokenType)
 }

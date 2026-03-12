@@ -129,13 +129,13 @@ func (t *LineTokenizer) token(val rune) (Token, error) {
 		if t.match('=') {
 			return Token{TokenType: EqualEqual, Value: nil}, nil
 		}
-		return Token{TokenType: EqualEqual, Value: nil}, nil
+		return Token{TokenType: Equal, Value: nil}, nil
 	default:
 		if unicode.IsDigit(val) {
 			return t.integer()
 		}
 		if unicode.IsLetter(val) {
-			return t.keywordOrIdentifier(val)
+			return t.keywordOrIdentifier()
 		}
 	}
 	return Token{}, fmt.Errorf("Unrecongized token %v, position: %v", val, t.current)
@@ -153,13 +153,15 @@ func (t *LineTokenizer) integer() (Token, error) {
 	return Token{TokenType: Integer, Value: intValue}, nil
 }
 
-func (t *LineTokenizer) keywordOrIdentifier(val rune) (Token, error) {
-	wordRunes := []rune{val}
+func (t *LineTokenizer) keywordOrIdentifier() (Token, error) {
+	wordRunes := []rune{t.previous()}
 	for !t.isEnd() && (unicode.IsLetter(t.peek()) || unicode.IsDigit(t.peek())) {
 		wordRunes = append(wordRunes, t.advance())
 	}
 	word := string(wordRunes)
 	switch word {
+	case "var":
+		return Token{TokenType: Var, Value: nil}, nil
 	case "true":
 		return Token{TokenType: Bool, Value: true}, nil
 	case "false":
