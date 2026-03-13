@@ -13,6 +13,13 @@ type Statement interface{
 	Statement()
 }
 
+type WhileStatement struct {
+	Condition Expression
+	Block Statement
+}
+
+func (s WhileStatement) Statement() {}
+
 type VarDeclaration struct {
 	Identifier string
 	Expr Expression
@@ -111,6 +118,8 @@ func (p *Parser) declaration() (Statement, error) {
 		stmt, err = p.block()
 	case p.match(token.If):
 		stmt, err = p.ifStatement()
+	case p.match(token.While):
+		stmt, err = p.whileStatement()
 	default:
 		stmt, err = p.statement()
 	}
@@ -175,18 +184,30 @@ func (p *Parser) ifStatement() (Statement, error) {
 	return IfStatement{Condition: condition, Block: block, ElseBlock: elseBlock}, nil
 }
 
+func (p *Parser) whileStatement() (Statement, error) {
+	condition, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+	if !p.match(token.LeftBrace) {
+		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek().TokenType}
+	}
+	block, err := p.block()
+	return WhileStatement{Condition: condition, Block: block}, nil
+}
+
 func (p *Parser) varDeclaration() (Statement, error) {
 	if !p.match(token.Identifier) {
-		return VarDeclaration{}, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+		return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
 	}
 	identifier := p.previous().Value.(string)
 	err := p.consume(token.Equal)
 	if err != nil {
-		return VarDeclaration{}, err
+		return nil, err
 	}
 	expr, err := p.expression()
 	if err != nil {
-		return VarDeclaration{}, err
+		return nil, err
 	}
 	return VarDeclaration{Identifier: identifier, Expr: expr}, nil
 }
@@ -196,7 +217,7 @@ func (p *Parser) assignment() (Statement, error) {
 	err := p.consume(token.Equal)
 	expr, err := p.expression()
 	if err != nil {
-		return VarAssignment{}, err
+		return nil, err
 	}
 	return VarAssignment{Identifier: identifier, Expr: expr}, nil
 }
@@ -207,21 +228,21 @@ func (p *Parser) statement() (Statement, error) {
 	}
 	expression, err := p.expression();
 	if err != nil {
-		return ExprStatement{}, err
+		return nil, err
 	}
 	return ExprStatement{Expr: expression}, nil
 }
 
-func (p *Parser) printStatement() (PrintStatement, error) {
+func (p *Parser) printStatement() (Statement, error) {
 	if !p.match(token.LeftParen) {
-		return PrintStatement{}, ParserError{Expected: token.LeftParen, Got: p.peek().TokenType}
+		return nil, ParserError{Expected: token.LeftParen, Got: p.peek().TokenType}
 	}
 	expression, err := p.expression()
 	if err != nil {
-		return PrintStatement{}, err
+		return nil, err
 	}
 	if err := p.consume(token.RightParen); err != nil {
-		return PrintStatement{}, err
+		return nil, err
 	}
 	return PrintStatement{Expr: expression}, nil
 }

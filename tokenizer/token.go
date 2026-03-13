@@ -41,6 +41,7 @@ const (
 	Var
 	If
 	Else
+	While
 
 	EOF
 	EOL

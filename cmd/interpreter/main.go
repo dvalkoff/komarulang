@@ -78,6 +78,8 @@ func interpretStmt(env *Environment, stmt parser.Statement) {
 		fmt.Println(result)
 	case parser.IfStatement:
 		interpretIf(env, typed)
+	case parser.WhileStatement:
+		interpretWhile(env, typed)
 	}
 }
 
@@ -88,18 +90,29 @@ func interpretBlock(parentEnv *Environment, block parser.Block) {
 	}
 }
 
+func interpretWhile(env *Environment, whileStmt parser.WhileStatement) {
+	for evaluateCondition(env, whileStmt.Condition) {
+		interpretStmt(env, whileStmt.Block)
+	}
+}
+
 func interpretIf(env *Environment, ifStmt parser.IfStatement) {
-	conditionValue := evaluate(env, ifStmt.Condition)
+	condition := evaluateCondition(env, ifStmt.Condition)
+	if condition {
+		interpretStmt(env, ifStmt.Block)
+	}
+	if !condition && ifStmt.ElseBlock != nil {
+		interpretStmt(env, ifStmt.ElseBlock)
+	}
+}
+
+func evaluateCondition(env *Environment, condition parser.Expression) bool {
+	conditionValue := evaluate(env, condition)
 	cond, ok := conditionValue.(bool)
 	if !ok {
 		panic(fmt.Sprintf("type mismatch: expected <boolean>, got %t", conditionValue))
 	}
-	if cond {
-		interpretStmt(env, ifStmt.Block)
-	}
-	if !cond && ifStmt.ElseBlock != nil {
-		interpretStmt(env, ifStmt.ElseBlock)
-	}
+	return cond
 }
 
 func evaluate(env *Environment, ast parser.Expression) any {

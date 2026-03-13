@@ -8,9 +8,9 @@ var b = true // bool
 a = 2 // reassignment
 
 { // code block. variables are local
-    var b = 3
+    var d = 3
     // arithmetic operations
-    var c = b + a
+    var c = d + a
     c = c * a
     c = c / a
     c = -c
@@ -46,6 +46,14 @@ if a > 5 {
     print(false)
 }
 
+{
+    // while loops
+    var e = 0
+    while e < 5 {
+        print(e)
+        e = e + 1
+    }
+}
 ```
 
 # Interpreter launch
