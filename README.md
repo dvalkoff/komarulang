@@ -15,6 +15,13 @@ a = 2 // reassignment
     c = c / a
     c = -c
     c = c % 2
+    // comparison
+    print(a > d)
+    print(a < d)
+    print(a >= d)
+    print(a <= d)
+    print(a != d)
+    print(a == d)
 }
 
 {
@@ -23,6 +30,8 @@ a = 2 // reassignment
     // logical operations
     print(e && f)
     print(e || f)
+    // bool negation
+    print(!e)
 }
 
 {
