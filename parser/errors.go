@@ -72,6 +72,10 @@ func tokenToString(t token.TokenType) string {
 		return "<if>"
 	case token.Else:
 		return "<else>"
+	case token.For:
+		return "<for>"
+	case token.While:
+		return "<for>"
 	case token.Ampersand:
 		return "&"
 	case token.AmpersandAmpersand:

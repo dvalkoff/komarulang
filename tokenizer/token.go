@@ -42,6 +42,7 @@ const (
 	If
 	Else
 	While
+	For
 
 	EOF
 	EOL

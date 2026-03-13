@@ -13,6 +13,15 @@ type Statement interface{
 	Statement()
 }
 
+type ForStatement struct {
+	VarDecl Statement
+	Condition Expression
+	Increment Statement
+	Block Statement
+}
+
+func (s ForStatement) Statement() {}
+
 type WhileStatement struct {
 	Condition Expression
 	Block Statement
@@ -120,6 +129,8 @@ func (p *Parser) declaration() (Statement, error) {
 		stmt, err = p.ifStatement()
 	case p.match(token.While):
 		stmt, err = p.whileStatement()
+	case p.match(token.For):
+		stmt, err = p.forStatement()
 	default:
 		stmt, err = p.statement()
 	}
@@ -184,6 +195,57 @@ func (p *Parser) ifStatement() (Statement, error) {
 	return IfStatement{Condition: condition, Block: block, ElseBlock: elseBlock}, nil
 }
 
+func (p *Parser) forStatement() (Statement, error) {
+	var varDecl Statement
+	var err error
+	switch {
+	case p.match(token.Var):
+		varDecl, err = p.varDeclaration()
+	case p.match(token.Identifier):
+		varDecl, err = p.assignment()
+	default:
+		return nil, errors.Join(
+			ParserError{Expected: token.Var, Got: p.peek().TokenType},
+			ParserError{Expected: token.Identifier, Got: p.peek().TokenType},
+		)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err = p.consume(token.Semicolon); err != nil {
+		return nil, err
+	}
+
+	condition, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+	if err = p.consume(token.Semicolon); err != nil {
+		return nil, err
+	}
+
+	if !p.match(token.Identifier) {
+		return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+	}
+	increment, err := p.assignment()
+	if err != nil {
+		return nil, err
+	}
+	if !p.match(token.LeftBrace) {
+		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek().TokenType}
+	}
+	block, err := p.block()
+	if err != nil {
+		return nil, err
+	}
+	return ForStatement{
+		VarDecl: varDecl,
+		Condition: condition,
+		Increment: increment,
+		Block: block,
+	}, nil
+}
+
 func (p *Parser) whileStatement() (Statement, error) {
 	condition, err := p.expression()
 	if err != nil {
@@ -193,6 +255,9 @@ func (p *Parser) whileStatement() (Statement, error) {
 		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek().TokenType}
 	}
 	block, err := p.block()
+	if err != nil {
+		return nil, err
+	}
 	return WhileStatement{Condition: condition, Block: block}, nil
 }
 

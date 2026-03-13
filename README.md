@@ -54,6 +54,19 @@ if a > 5 {
         e = e + 1
     }
 }
+
+
+{
+    // for loops
+    for var i = 0; i < 10; i = i + 1 {
+        print(i)
+    }
+
+    var i = 0 // variable doesn't have to be declared inside for statement
+    for i = 1; i <= 10; i = i + 1 {
+        print(i)
+    }
+}
 ```
 
 # Interpreter launch

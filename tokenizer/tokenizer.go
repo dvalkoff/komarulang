@@ -186,6 +186,8 @@ func (t *LineTokenizer) keywordOrIdentifier() (Token, error) {
 		return Token{TokenType: Else, Value: nil}, nil
 	case "while":
 		return Token{TokenType: While, Value: nil}, nil
+	case "for":
+		return Token{TokenType: For, Value: nil}, nil
 	}
 	return Token{TokenType: Identifier, Value: word}, nil
 }

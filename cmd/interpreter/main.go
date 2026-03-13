@@ -80,6 +80,8 @@ func interpretStmt(env *Environment, stmt parser.Statement) {
 		interpretIf(env, typed)
 	case parser.WhileStatement:
 		interpretWhile(env, typed)
+	case parser.ForStatement:
+		interpretFor(env, typed)
 	}
 }
 
@@ -87,6 +89,15 @@ func interpretBlock(parentEnv *Environment, block parser.Block) {
 	env := NewEnvironment(parentEnv)
 	for _, stmt := range block.Stmts {
 		interpretStmt(env, stmt)
+	}
+}
+
+func interpretFor(parentEnv *Environment, forStatement parser.ForStatement) {
+	env := NewEnvironment(parentEnv)
+	interpretStmt(env, forStatement.VarDecl)
+	for evaluateCondition(env, forStatement.Condition) {
+		interpretStmt(env, forStatement.Block)
+		interpretStmt(env, forStatement.Increment)
 	}
 }
 
