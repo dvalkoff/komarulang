@@ -17,6 +17,24 @@ a = 2 // reassignment
     c = c % 2
 }
 
+{
+    var e = true
+    var f = false
+    // logical operations
+    print(e && f)
+    print(e || f)
+}
+
+{
+    var e = 128
+    var f = 64
+    // bitwise operations
+    print(e & f)
+    print(e | f)
+    print(e ^ f)
+}
+
+
 print(a) // stdout builtin "function". techically it's a keyword for now
 
 // if else statements full support

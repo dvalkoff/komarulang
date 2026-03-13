@@ -105,6 +105,18 @@ func (t *LineTokenizer) token(val rune) (Token, error) {
 		return Token{TokenType: RightBrace, Value: nil}, nil
 	case ';':
 		return Token{TokenType: Semicolon, Value: nil}, nil
+	case '^':
+		return Token{TokenType: Caret, Value: nil}, nil
+	case '&':
+		if t.match('&') {
+			return Token{TokenType: AmpersandAmpersand, Value: nil}, nil
+		}
+		return Token{TokenType: Ampersand, Value: nil}, nil
+	case '|':
+		if t.match('|') {
+			return Token{TokenType: VbarVbar, Value: nil}, nil
+		}
+		return Token{TokenType: Vbar, Value: nil}, nil
 	case '/':
 		if t.match('/') {
 			return Token{TokenType: EOL, Value: nil}, nil

@@ -72,6 +72,16 @@ func tokenToString(t token.TokenType) string {
 		return "<if>"
 	case token.Else:
 		return "<else>"
+	case token.Ampersand:
+		return "&"
+	case token.AmpersandAmpersand:
+		return "&&"
+	case token.Vbar:
+		return "|"
+	case token.VbarVbar:
+		return "||"
+	case token.Caret:
+		return "^"
 	}
 	return ""
 }

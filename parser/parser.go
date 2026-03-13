@@ -227,16 +227,99 @@ func (p *Parser) printStatement() (PrintStatement, error) {
 }
 
 func (p *Parser) expression() (Expression, error) {
-	return p.comparison()
+	return p.logicalOr()
+}
+
+func (p *Parser) logicalOr() (Expression, error) {
+	expression, err := p.logicalAnd()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.match(token.VbarVbar) {
+		operator := p.previous().TokenType
+		right, err := p.logicalAnd()
+		if err != nil {
+			return nil, err
+		}
+		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+	}
+	return expression, nil
+}
+
+func (p *Parser) logicalAnd() (Expression, error) {
+	expression, err := p.comparison()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.match(token.AmpersandAmpersand) {
+		operator := p.previous().TokenType
+		right, err := p.comparison()
+		if err != nil {
+			return nil, err
+		}
+		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+	}
+	return expression, nil
 }
 
 func (p *Parser) comparison() (Expression, error) {
-	expression, err := p.term()
+	expression, err := p.bitwiseOR()
 	if err != nil {
 		return nil, err
 	}
 
 	for p.match(token.EqualEqual, token.BangEqual, token.Less, token.LessEqual, token.Greater, token.GreaterEqual) {
+		operator := p.previous().TokenType
+		right, err := p.bitwiseOR()
+		if err != nil {
+			return nil, err
+		}
+		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+	}
+	return expression, nil
+}
+
+func (p *Parser) bitwiseOR() (Expression, error) {
+	expression, err := p.bitwiseXOR()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.match(token.Vbar) {
+		operator := p.previous().TokenType
+		right, err := p.bitwiseXOR()
+		if err != nil {
+			return nil, err
+		}
+		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+	}
+	return expression, nil
+}
+func (p *Parser) bitwiseXOR() (Expression, error) {
+	expression, err := p.bitwiseAND()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.match(token.Caret) {
+		operator := p.previous().TokenType
+		right, err := p.bitwiseAND()
+		if err != nil {
+			return nil, err
+		}
+		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+	}
+	return expression, nil
+}
+func (p *Parser) bitwiseAND() (Expression, error) {
+	expression, err := p.term()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.match(token.Ampersand) {
 		operator := p.previous().TokenType
 		right, err := p.term()
 		if err != nil {

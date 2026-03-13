@@ -169,6 +169,23 @@ func evaluateBinaryOperation(leftOperand, rightOperand any, operator tokenizer.T
 		return leftOperand == rightOperand
 	case tokenizer.BangEqual:
 		return leftOperand != rightOperand
+
+	case tokenizer.Ampersand:
+		left, right := leftOperand.(int), rightOperand.(int)
+		return left & right
+	case tokenizer.Vbar:
+		left, right := leftOperand.(int), rightOperand.(int)
+		return left | right
+	case tokenizer.Caret:
+		left, right := leftOperand.(int), rightOperand.(int)
+		return left ^ right
+	
+	case tokenizer.AmpersandAmpersand:
+		left, right := leftOperand.(bool), rightOperand.(bool)
+		return left && right
+	case tokenizer.VbarVbar:
+		left, right := leftOperand.(bool), rightOperand.(bool)
+		return left || right
 	}
 	panic(fmt.Sprintf("can not execute operation %v on left: %v and right %v", operator, leftOperand, rightOperand))
 }

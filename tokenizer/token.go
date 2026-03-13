@@ -15,6 +15,12 @@ const (
 	LeftBrace
 	RightBrace
 	Semicolon
+	
+	Ampersand
+	AmpersandAmpersand
+	Vbar
+	VbarVbar
+	Caret
 
 	Bang
 	BangEqual
