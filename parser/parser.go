@@ -2,6 +2,7 @@ package parser
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 
 	token "github.com/dvalkoff/komarulang/tokenizer"
@@ -11,41 +12,128 @@ type Expression interface {
 	Type() token.VarType
 }
 
-type Statement interface{
+type Statement interface {
 	Statement()
 }
 
+type FunctionDecl struct {
+	Name        string
+	Arguments   []FunctionArgument
+	ReturnTypes []token.VarType
+	Body        Statement
+}
+
+func (d *FunctionDecl) Statement() {}
+
+type FunctionArgument struct {
+	VarType    token.VarType
+	Identifier string
+}
+
+type FunctionCall struct {
+	Name      string
+	Arguments []Expression
+}
+
+func (d *FunctionCall) Type() token.VarType {
+	return token.MultipleValues
+}
+
+func (c *FunctionCall) Statement() {}
+
+type ReturnStatement struct {
+	Expressions []Expression
+}
+
+func (c *ReturnStatement) Statement() {}
+
+func (e *ReturnStatement) Type() token.VarType {
+	return token.MultipleValues
+}
+
+type BreakStatement struct{
+	GotoLabel Label
+}
+
+func (c *BreakStatement) Statement() {}
+
+type ContinueStatement struct{
+	GotoLabel Label
+}
+
+func (c *ContinueStatement) Statement() {}
+
+const (
+	UndefinedLabelType LabelType = ""
+	EndIfType          LabelType = "end_if"
+	ElseType           LabelType = "else"
+	WhileLoop          LabelType = "while_loop"
+	WhileLoopEnd       LabelType = "while_loop_end"
+	ForLoop            LabelType = "for_loop"
+	ForLoopEnd         LabelType = "for_loop_end"
+	LoopStart          LabelType = "loop_start"
+	LoopLabel          LabelType = "loop_label"
+	LoopEnd            LabelType = "loop_end"
+	IncrementLabel     LabelType = "increment_for_loop"
+)
+
+type LabelType string
+
+var labelCounter = 0
+
+type Label struct {
+	LabelType LabelType
+	Index     int
+}
+
+func NewLabel(labelType LabelType) Label {
+	index := labelCounter
+	labelCounter++
+	return Label{
+		LabelType: labelType,
+		Index:     index,
+	}
+}
+
+func (l Label) String() string {
+	return fmt.Sprintf("%v_%v", l.LabelType, l.Index)
+}
+
 type ForStatement struct {
-	VarDecl Statement
-	Condition Expression
-	Increment Statement
-	Block Statement
+	LabelStart Label
+	LabelIncrement Label
+	LabelEnd   Label
+	VarDecl    Statement
+	Condition  Expression
+	Increment  Statement
+	Block      Statement
 }
 
 func (s *ForStatement) Statement() {}
 
 type WhileStatement struct {
-	Condition Expression
-	Block Statement
+	LabelStart Label
+	LabelEnd   Label
+	Condition  Expression
+	Block      Statement
 }
 
 func (s *WhileStatement) Statement() {}
 
 type VarDeclaration struct {
-	VarType token.VarType
+	VarType    token.VarType
 	Identifier string
-	Expr Expression
+	Expr       Expression
 }
 
 func (d *VarDeclaration) Statement() {}
 
 type VarAssignment struct {
 	Identifier string
-	Expr Expression
+	Expr       Expression
 }
 
 func (d *VarAssignment) Statement() {}
-
 
 type ExprStatement struct {
 	Expr Expression
@@ -67,7 +155,7 @@ func (s *Block) Statement() {}
 
 type IfStatement struct {
 	Condition Expression
-	Block Statement
+	Block     Statement
 	ElseBlock Statement
 }
 
@@ -94,7 +182,7 @@ type IdentifierLiteral struct {
 }
 
 func (e *IdentifierLiteral) Type() token.VarType {
-	return token.IdentifierType
+	return token.NotSpecified
 }
 
 type BinaryExpression struct {
@@ -127,7 +215,6 @@ func NewParser(tokens []token.Token) *Parser {
 	return &Parser{tokens: tokens, current: 0}
 }
 
-
 func (p *Parser) Parse() ([]Statement, error) {
 	declarations := make([]Statement, 0)
 	for !p.isEOF() {
@@ -156,6 +243,14 @@ func (p *Parser) declaration() (Statement, error) {
 		stmt, err = p.whileStatement()
 	case p.match(token.For):
 		stmt, err = p.forStatement()
+	case p.match(token.Fun):
+		stmt, err = p.funcDeclaration()
+	case p.match(token.Return):
+		stmt, err = p.returnStatement()
+	case p.match(token.Break):
+		stmt = &BreakStatement{}
+	case p.match(token.Continue):
+		stmt = &ContinueStatement{}
 	default:
 		stmt, err = p.statement()
 	}
@@ -167,6 +262,94 @@ func (p *Parser) declaration() (Statement, error) {
 		return nil, err
 	}
 	return stmt, nil
+}
+
+func (p *Parser) returnStatement() (*ReturnStatement, error) {
+	expressions := make([]Expression, 0)
+
+	for !p.isEOF() && p.peek().TokenType != token.Semicolon {
+		expr, err := p.expression()
+		if err != nil {
+			return nil, err
+		}
+		expressions = append(expressions, expr)
+		if err := p.consume(token.Comma); err != nil { // TODO: need to handle last param
+			return nil, ParserError{Expected: token.Comma, Got: p.peek().TokenType}
+		}
+	}
+	return &ReturnStatement{Expressions: expressions}, nil
+}
+
+func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
+	if !p.match(token.Identifier) {
+		return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+	}
+	functionName := p.previous().Value.(string)
+	if err := p.consume(token.LeftParen); err != nil {
+		return nil, err
+	}
+	funParams := make([]FunctionArgument, 0)
+	for !p.isEOF() && p.peek().TokenType != token.RightParen {
+		if !p.match(token.Identifier) {
+			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+		}
+		paramName := p.previous().Value.(string)
+		if !p.match(token.Type) {
+			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+		}
+		paramType := p.previous().Value.(token.VarType)
+		funParams = append(funParams, FunctionArgument{
+			VarType:    paramType,
+			Identifier: paramName,
+		})
+		if err := p.consume(token.Comma); err != nil { // TODO: need to handle last param
+			return nil, ParserError{Expected: token.Comma, Got: p.peek().TokenType}
+		}
+	}
+	if p.isEOF() {
+		return nil, ParserError{Expected: token.RightParen, Got: token.EOF}
+	}
+	p.consume(token.RightParen)
+
+	returnTypes := make([]token.VarType, 0)
+	if p.match(token.Type) {
+		singleReturnType := p.previous().Value.(token.VarType)
+		returnTypes = append(returnTypes, singleReturnType)
+	} else if p.match(token.LeftParen) {
+		for !p.isEOF() && p.peek().TokenType != token.RightParen {
+			if !p.match(token.Type) {
+				return nil, ParserError{Expected: token.Type, Got: p.peek().TokenType}
+			}
+			returnType := p.previous().Value.(token.VarType)
+			returnTypes = append(returnTypes, returnType)
+			if err := p.consume(token.Comma); err != nil { // TODO: need to handle last param
+				return nil, ParserError{Expected: token.Comma, Got: p.peek().TokenType}
+			}
+		}
+		if p.isEOF() {
+			return nil, ParserError{Expected: token.RightParen, Got: token.EOF}
+		}
+		p.consume(token.RightParen)
+	} else {
+		return nil, errors.Join(
+			ParserError{Expected: token.Type, Got: p.peek().TokenType},
+			ParserError{Expected: token.LeftParen, Got: p.peek().TokenType},
+		)
+	}
+
+	if !p.match(token.LeftBrace) {
+		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek().TokenType}
+	}
+	funBlock, err := p.block()
+	if err != nil {
+		return nil, err
+	}
+	return &FunctionDecl{
+		Name:        functionName,
+		Arguments:   funParams,
+		ReturnTypes: returnTypes,
+		Body:        funBlock,
+	}, nil
 }
 
 func (p *Parser) block() (*Block, error) {
@@ -201,7 +384,7 @@ func (p *Parser) ifStatement() (*IfStatement, error) {
 	if err != nil {
 		return nil, err
 	}
-	var elseBlock Statement = nil 
+	var elseBlock Statement = nil
 	if p.match(token.Else) {
 		if p.match(token.If) {
 			elseBlock, err = p.ifStatement()
@@ -264,10 +447,10 @@ func (p *Parser) forStatement() (*ForStatement, error) {
 		return nil, err
 	}
 	return &ForStatement{
-		VarDecl: varDecl,
+		VarDecl:   varDecl,
 		Condition: condition,
 		Increment: increment,
-		Block: block,
+		Block:     block,
 	}, nil
 }
 
@@ -322,7 +505,7 @@ func (p *Parser) statement() (Statement, error) {
 	if p.match(token.Print) {
 		return p.printStatement()
 	}
-	expression, err := p.expression();
+	expression, err := p.expression()
 	if err != nil {
 		return nil, err
 	}
@@ -521,9 +704,34 @@ func (p *Parser) primary() (Expression, error) {
 	}
 	if p.match(token.Identifier) {
 		identifier := p.previous().Value.(string)
+		if p.match(token.LeftParen) {
+			return p.evaluateFunCall(identifier)
+		}
 		return &IdentifierLiteral{Value: identifier}, nil
 	}
 	return nil, ParserError{Expected: token.Integer, Got: p.peek().TokenType}
+}
+
+func (p *Parser) evaluateFunCall(funName string) (*FunctionCall, error) {
+	parameters := make([]Expression, 0)
+	for !p.isEOF() && p.peek().TokenType != token.RightParen {
+		param, err := p.expression()
+		if err != nil {
+			return nil, err
+		}
+		parameters = append(parameters, param)
+		if err := p.consume(token.Comma); err != nil { // TODO: last value
+			return nil, err
+		}
+	}
+	if p.isEOF() {
+		return nil, ParserError{Expected: token.RightParen, Got: token.EOF}
+	}
+	p.consume(token.RightParen)
+	return &FunctionCall{
+		Name:      funName,
+		Arguments: parameters,
+	}, nil
 }
 
 func (p *Parser) consume(tokenType token.TokenType) error {

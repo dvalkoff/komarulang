@@ -211,44 +211,21 @@ func (s Ldr) String() string {
 	return fmt.Sprintf("    ldr %v, [sp, %v]", s.A, s.Offset)
 }
 
-const (
-	EndIfType LabelType = "end_if"
-	ElseType LabelType = "else"
-	WhileLoop LabelType = "while_loop"
-	WhileLoopEnd LabelType = "while_loop_end"
-	ForLoop LabelType = "for_loop"
-	ForLoopEnd LabelType = "for_loop_end"
-)
-
-type LabelType string
-
-var labelCounter = 0
-
-type Label struct {
-	LabelType LabelType
-	Index int
+type AsmLabel struct {
+	Name string
 }
 
-func NewLabel(labelType LabelType) Label {
-	index := labelCounter
-	labelCounter++
-	return Label{
-		LabelType: labelType,
-		Index: index,
-	}
+func (s AsmLabel) Value() string {
+	return s.Name
 }
 
-func (s Label) Value() string {
-	return fmt.Sprintf("%v_%v", s.LabelType, s.Index)
-}
-
-func (s Label) String() string {
+func (s AsmLabel) String() string {
 	return fmt.Sprintf("    %v:", s.Value())
 }
 
 type Cbz struct {
 	A Register
-	Label Label
+	Label AsmLabel
 }
 
 func (s Cbz) String() string {
@@ -256,7 +233,7 @@ func (s Cbz) String() string {
 }
 
 type Bjump struct {
-	Label Label
+	Label AsmLabel
 }
 
 func (b Bjump) String() string {

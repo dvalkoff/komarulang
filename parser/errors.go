@@ -113,8 +113,6 @@ func tokenToString(t token.TokenType) string {
 
 func typeToString(t token.VarType) string {
 	switch t {
-	case token.VoidType:
-		return "<void>"
 	case token.IntType:
 		return "<int>"
 	case token.BoolType:

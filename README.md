@@ -113,5 +113,6 @@ Interpreter test:
 komarulang % time ./main calculator.kl
 ./main calculator.kl  0.31s user 0.01s system 99% cpu 0.320 total
 ```
-
+On a second thought, increasing a data set for benchmarking has led to a huge performance gap between a compiler and an interpreter.
+Compiler's just much much faster. And I have no idea how much, but I've got the urge to say "🚀 blazingly fast".
 

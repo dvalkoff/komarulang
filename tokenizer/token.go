@@ -15,7 +15,8 @@ const (
 	LeftBrace
 	RightBrace
 	Semicolon
-	
+	Comma
+
 	Ampersand
 	AmpersandAmpersand
 	Vbar
@@ -35,7 +36,7 @@ const (
 	Integer
 	Bool
 	Identifier
-	Print // Temporart until gets replaced by stdlib
+	Print // Temporary until gets replaced by stdlib
 
 	// keywords
 	Var
@@ -43,6 +44,12 @@ const (
 	Else
 	While
 	For
+
+	// functions
+	Fun
+	Return
+	Break
+	Continue
 
 	// types
 	Type
@@ -57,8 +64,8 @@ const (
 	NotSpecified VarType = VarType(-1)
 	BoolType VarType = iota
 	IntType
-	VoidType
 	IdentifierType
+	MultipleValues
 )
 
 type VarType int

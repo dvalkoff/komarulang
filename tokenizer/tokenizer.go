@@ -48,7 +48,7 @@ func (t *Tokenizer) addSemicolon(lineTokens []Token) []Token {
 		return lineTokens
 	}
 	lastTokenOnLine := lineTokens[len(lineTokens) -1]
-	if lastTokenOnLine.TokenType.Match(Identifier, Print, Integer, Bool, RightBrace, RightParen, RightBrace) {
+	if lastTokenOnLine.TokenType.Match(Identifier, Print, Integer, Bool, RightBrace, RightParen, RightBrace, Break, Continue, Return) {
 		lineTokens = append(lineTokens, Token{TokenType: Semicolon, Value: nil})
 	}
 	return lineTokens
@@ -107,6 +107,8 @@ func (t *LineTokenizer) token(val rune) (Token, error) {
 		return Token{TokenType: Semicolon, Value: nil}, nil
 	case '^':
 		return Token{TokenType: Caret, Value: nil}, nil
+	case ',':
+		return Token{TokenType: Comma, Value: nil}, nil
 	case '&':
 		if t.match('&') {
 			return Token{TokenType: AmpersandAmpersand, Value: nil}, nil
@@ -192,6 +194,14 @@ func (t *LineTokenizer) keywordOrIdentifier() (Token, error) {
 		return Token{TokenType: Type, Value: IntType}, nil
 	case "bool":
 		return Token{TokenType: Type, Value: BoolType}, nil
+	case "fun":
+		return Token{TokenType: Fun, Value: nil}, nil
+	case "return":
+		return Token{TokenType: Return, Value: nil}, nil
+	case "break":
+		return Token{TokenType: Break, Value: nil}, nil
+	case "continue":
+		return Token{TokenType: Continue, Value: nil}, nil
 	}
 	return Token{TokenType: Identifier, Value: word}, nil
 }

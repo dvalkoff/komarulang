@@ -27,11 +27,17 @@ func (p Program) String() string {
 `)
 
 	b.WriteString(`
-// x0 comes as a argument
+// _print_int: prints integer in x0 to stdout
+// Buffer layout (48 bytes, sp+0 to sp+47):
+//   sp+0:  saved x30
+//   sp+1 to sp+46: digit buffer (fills backwards from sp+46)
+//   sp+47: newline character
+// Clobbers: x0-x6, x10, x16
+// Preserves: x30 (saved/restored)
 _print_int:
 
     sub sp, sp, #48 // allocating 32 bytes for int64
-    mov x5, #48 // sp pointer to current char
+    mov x5, #47 // sp pointer to current char
     str x30, [sp, #0]    // save x30
 
     mov x4, #10       // newline ASCII
@@ -87,12 +93,12 @@ _print_int:
     mov x0, #1       // stdout
     add x1, sp, x5      // x1 = address of string
     add x1, x1, #1      // x1 = address of string
-    mov x4, #48
+    mov x4, #47
     sub x2, x4, x5 // calculating and setting len
 
     svc #0x80
     ldr x30, [sp, #0]   // restore x30
-    add sp, sp, #32 // deallocating stack
+    add sp, sp, #48 // deallocating stack
     ret
 `)
 
@@ -147,6 +153,10 @@ func (c *CodeGenerator) compileStmt(env *Offsets, stmt parser.Statement, reg Reg
 		return c.compileFor(env, typed, reg)
 	case *parser.PrintStatement:
 		return c.compilePrint(env, typed, reg)
+	case *parser.BreakStatement:
+		return c.compileBreak(env, typed, reg)
+	case *parser.ContinueStatement:
+		return c.compileContinue(env, typed, reg)
 	}
 	return 0, fmt.Errorf("Unexpected statement %v", stmt)
 }
@@ -158,6 +168,20 @@ func (c *CodeGenerator) compilePrint(env *Offsets, printStmt *parser.PrintStatem
 	}
 	c.Prog.Emit(PrintSubroutine{})
 	return reg, nil
+}
+
+func (c *CodeGenerator) compileBreak(env *Offsets, breakStmt *parser.BreakStatement, reg Register) (Register, error) {
+	c.Prog.Emit(Bjump{
+		Label: AsmLabel{breakStmt.GotoLabel.String()},
+	})
+	return reg,  nil
+}
+
+func (c *CodeGenerator) compileContinue(env *Offsets, continueStmt *parser.ContinueStatement, reg Register) (Register, error) {
+	c.Prog.Emit(Bjump{
+		Label: AsmLabel{continueStmt.GotoLabel.String()},
+	})
+	return reg,  nil
 }
 
 func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStatement, reg Register) (Register, error) {
@@ -178,8 +202,9 @@ func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStat
 		return reg, err
 	}
 
-	forLoopLabel := NewLabel(ForLoop)
-	forLoopEndLabel := NewLabel(ForLoopEnd)
+	forLoopLabel := AsmLabel{forStatement.LabelStart.String()}
+	forLoopEndLabel := AsmLabel{forStatement.LabelEnd.String()}
+	incrementLabel := AsmLabel{forStatement.LabelIncrement.String()}
 	c.Prog.Emit(forLoopLabel)
 	reg, err = c.compileExpr(env, forStatement.Condition, reg)
 	if err != nil {
@@ -193,6 +218,7 @@ func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStat
 	if err != nil {
 		return reg, err
 	}
+	c.Prog.Emit(incrementLabel)
 	reg, err = c.compileStmt(env, forStatement.Increment, reg)
 	c.Prog.Emit(Bjump{
 		Label: forLoopLabel,
@@ -209,8 +235,8 @@ func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStat
 }
 
 func (c *CodeGenerator) compileWhile(env *Offsets, whileStatement *parser.WhileStatement, reg Register) (Register, error) {
-	whileLoopLabel := NewLabel(WhileLoop)
-	whileLoopEndLabel := NewLabel(WhileLoopEnd)
+	whileLoopLabel := AsmLabel{whileStatement.LabelStart.String()}
+	whileLoopEndLabel := AsmLabel{whileStatement.LabelEnd.String()}
 	c.Prog.Emit(whileLoopLabel)
 	reg, err := c.compileExpr(env, whileStatement.Condition, reg)
 	if err != nil {
@@ -232,8 +258,8 @@ func (c *CodeGenerator) compileWhile(env *Offsets, whileStatement *parser.WhileS
 }
 
 func (c *CodeGenerator) compileIf(env *Offsets, ifStatement *parser.IfStatement, reg Register) (Register, error) {
-	endIfLabel := NewLabel(EndIfType)
-	elseLabel := NewLabel(ElseType)
+	endIfLabel := AsmLabel{parser.NewLabel(parser.EndIfType).String()}
+	elseLabel := AsmLabel{parser.NewLabel(parser.ElseType).String()}
 	reg, err := c.compileExpr(env, ifStatement.Condition, reg)
 	c.Prog.Emit(Cbz{
 		A: reg,
