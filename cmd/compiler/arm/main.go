@@ -82,7 +82,7 @@ func main() {
 	}
 	codegen := codegen.NewCodeGenerator()
 	for _, stmt := range stmts {
-		if _, err := codegen.CompileExpr(stmt, 0); err != nil {
+		if _, err := codegen.CompileStmt(stmt, 0); err != nil {
 			panic(err)
 		}
 	}

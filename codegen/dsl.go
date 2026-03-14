@@ -16,6 +16,11 @@ type Operand interface {
 	String() string
 }
 
+const (
+	TrueImm = Imm(1)
+	FalseImm = Imm(0)
+)
+
 type Imm int
 
 func (i Imm) String() string {
@@ -51,10 +56,14 @@ func (m Movk) String() string {
 	return fmt.Sprintf("    movk %v, %v, lsl %v", m.Dst, m.Src, m.Lsl)
 }
 
-type Add struct {
+type BinaryOperation struct {
 	Dst Register
 	A   Register
-	B   Register
+	B   Register	
+}
+
+type Add struct {
+	BinaryOperation
 }
 
 func (a Add) String() string {
@@ -62,9 +71,7 @@ func (a Add) String() string {
 }
 
 type Sub struct {
-	Dst Register
-	A   Register
-	B   Register
+	BinaryOperation
 }
 
 func (s Sub) String() string {
@@ -72,9 +79,7 @@ func (s Sub) String() string {
 }
 
 type Mul struct {
-	Dst Register
-	A   Register
-	B   Register
+	BinaryOperation
 }
 
 func (m Mul) String() string {
@@ -82,9 +87,7 @@ func (m Mul) String() string {
 }
 
 type Sdiv struct {
-	Dst Register
-	A   Register
-	B   Register
+	BinaryOperation
 }
 
 func (s Sdiv) String() string {
@@ -98,4 +101,78 @@ type Neg struct {
 
 func (n Neg) String() string {
 	return fmt.Sprintf("    neg %v, %v", n.Dst, n.A)
+}
+
+type Udiv struct {
+	BinaryOperation
+}
+
+func (s Udiv) String() string {
+	return fmt.Sprintf("    udiv %v, %v, %v", s.Dst, s.A, s.B)
+}
+
+type MSub struct {
+	Dst Register
+	A   Register
+	B   Register
+	C   Register
+}
+
+func (s MSub) String() string {
+	return fmt.Sprintf("    msub %v, %v, %v, %v", s.Dst, s.A, s.B, s.C)
+}
+
+type BitwiseAnd struct {
+	BinaryOperation
+}
+
+func (s BitwiseAnd) String() string {
+	return fmt.Sprintf("    and %v, %v, %v", s.Dst, s.A, s.B)
+}
+
+type BitwiseOr struct {
+	BinaryOperation
+}
+
+func (s BitwiseOr) String() string {
+	return fmt.Sprintf("    orr %v, %v, %v", s.Dst, s.A, s.B)
+}
+
+type BitwiseXor struct {
+	BinaryOperation
+}
+
+func (s BitwiseXor) String() string {
+	return fmt.Sprintf("    eor %v, %v, %v", s.Dst, s.A, s.B)
+}
+
+type Cmd struct {
+	A Register
+	B Register
+}
+
+func (s Cmd) String() string {
+	return fmt.Sprintf("    cmp %v, %v", s.A, s.B)
+}
+
+const (
+	CSET_EQ CSetValue = "EQ"
+	CSET_NE CSetValue = "NE"
+
+	CSET_GT CSetValue = "GT"
+	CSET_GE CSetValue = "GE"
+	
+	CSET_LT CSetValue = "LT"
+	CSET_LE CSetValue = "LE"
+)
+
+type CSetValue string
+
+type CSet struct {
+	A Register
+	Value CSetValue
+}
+
+func (s CSet) String() string {
+	return fmt.Sprintf("    cset %v, %v", s.A, s.Value)
 }
