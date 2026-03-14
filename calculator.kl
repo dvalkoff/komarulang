@@ -4,7 +4,7 @@ var b = true // bool
 
 a = 2 // reassignment
 
-//print(a) // stdout builtin "function". techically it's a keyword for now
+print(a) // stdout builtin "function". techically it's a keyword for now
 
 { // code block. variables are local
     var d = 3
@@ -15,47 +15,47 @@ a = 2 // reassignment
     c = -c
     c = c % 2
     // comparison
-    //print(a > d)
-    //print(a < d)
-    //print(a >= d)
-    //print(a <= d)
-    //print(a != d)
-    //print(a == d)
+    print(a > d)
+    print(a < d)
+    print(a >= d)
+    print(a <= d)
+    print(a != d)
+    print(a == d)
 }
 
 {
     var e = true
     var f = false
     // logical operations
-    //print(e && f)
-    //print(e || f)
+    print(e && f)
+    print(e || f)
     // bool negation
-    //print(!e)
+    print(!e)
 }
 
 {
     var e = 128
     var f = 64
     // bitwise operations
-    //print(e & f)
-    //print(e | f)
-    //print(e ^ f)
+    print(e & f)
+    print(e | f)
+    print(e ^ f)
 }
 
 // if else statements full support
 if a > 5 {
-    //print(a)
+    print(a)
 } else if b {
-    //print(b)
+    print(b)
 } else {
-    //print(false)
+    print(false)
 }
 
 {
     // while loops
     var e = 0
     while e < 5 {
-        //print(e)
+        print(e)
         e = e + 1
     }
 }
@@ -64,12 +64,12 @@ if a > 5 {
 {
     // for loops
     for var i = 0; i < 10; i = i + 1 {
-        //print(i)
+        print(i)
     }
 
     var i = 0 // variable doesn't have to be declared inside for statement
     for i = 1; i <= 10; i = i + 1 {
-        //print(i)
+        print(i)
     }
 }
 

@@ -90,7 +90,7 @@ go build ./cmd/interpreter/main.go
 ./main calculator.kl
 ```
 
-# A compiler (temporarely outdated):
+# A compiler:
 ```
 go build ./cmd/compiler/arm/main.go
 ```

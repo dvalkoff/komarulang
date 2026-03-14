@@ -24,6 +24,79 @@ func (p Program) String() string {
 	b.WriteString(`.global _main
 .align 2
 
+`)
+
+	b.WriteString(`
+// x0 comes as a argument
+_print_int:
+
+    sub sp, sp, #32 // allocating 32 bytes for int64
+    mov x5, #19 // sp pointer to current char
+    str x30, [sp, #0]    // save x30
+
+    mov x4, #10       // newline ASCII
+    add x6, sp, x5
+    strb w4, [x6]
+    sub x5, x5, #1
+
+    // at start of _print_int
+    mov x10, #0
+    cmp x0, #0
+    B.GE skip_negative    // if positive, skip
+    neg x0, x0            // make positive
+    mov x10, #1  // store '-' character flag
+    skip_negative:
+
+	cmp x0, #0
+	B.NE main_algo    // if not zero, go to loop
+	// x0 IS zero — handle special case
+	mov x4, #48                // '0' ASCII
+	add x6, sp, x5
+	strb w4, [x6]              // store '0'
+	sub x5, x5, #1
+	B while_num_non_zero_end
+
+	main_algo:
+
+
+    while_num_non_zero:
+    cmp x0, #0
+    B.EQ while_num_non_zero_end // if zero, goto end of loop
+    mov x1, #10 // setting a divider into a register
+    sdiv x2, x0, x1 // 2-step modulo
+    msub x4, x2, x1, x0
+    add x4, x4, #48   // shifting for ASCII. '0' = 48 in ASCII
+    add x6, sp, x5     // x6 = sp + x5 (actual address)
+    strb w4, [x6]       // store at that address
+    sub x5, x5, #1 // decreasing a pointer
+    sdiv x0, x0, x1 // dividing by 10
+    B while_num_non_zero // returning to a loop starting point
+
+    while_num_non_zero_end:
+
+    cmp x10, #0
+    B.EQ skip_sign
+    mov x4, #45       // newline ASCII
+    add x6, sp, x5
+    strb w4, [x6]
+    sub x5, x5, #1
+
+    skip_sign:
+
+    mov x16, #4      // write
+    mov x0, #1       // stdout
+    add x1, sp, x5      // x1 = address of string
+    add x1, x1, #1      // x1 = address of string
+    mov x4, #19
+    sub x2, x4, x5 // calculating and setting len
+
+    svc #0x80
+    ldr x30, [sp, #0]   // restore x30
+    add sp, sp, #32 // deallocating stack
+    ret
+`)
+
+	b.WriteString(`
 _main:
 `)
 
@@ -72,8 +145,19 @@ func (c *CodeGenerator) compileStmt(env *Offsets, stmt parser.Statement, reg Reg
 		return c.compileWhile(env, typed, reg)
 	case *parser.ForStatement:
 		return c.compileFor(env, typed, reg)
+	case *parser.PrintStatement:
+		return c.compilePrint(env, typed, reg)
 	}
 	return 0, fmt.Errorf("Unexpected statement %v", stmt)
+}
+
+func (c *CodeGenerator) compilePrint(env *Offsets, printStmt *parser.PrintStatement, reg Register) (Register, error) {
+	reg, err := c.compileExpr(env, printStmt.Expr, reg)
+	if err != nil {
+		return reg, err
+	}
+	c.Prog.Emit(PrintSubroutine{})
+	return reg, nil
 }
 
 func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStatement, reg Register) (Register, error) {

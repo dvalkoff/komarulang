@@ -262,3 +262,9 @@ type Bjump struct {
 func (b Bjump) String() string {
 	return fmt.Sprintf("    B %v", b.Label.Value())
 }
+
+type PrintSubroutine struct {}
+
+func (psb PrintSubroutine) String() string {
+	return "    BL _print_int"
+}
