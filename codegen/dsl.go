@@ -216,6 +216,8 @@ const (
 	ElseType LabelType = "else"
 	WhileLoop LabelType = "while_loop"
 	WhileLoopEnd LabelType = "while_loop_end"
+	ForLoop LabelType = "for_loop"
+	ForLoopEnd LabelType = "for_loop_end"
 )
 
 type LabelType string

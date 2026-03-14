@@ -56,22 +56,72 @@ func (c *CodeGenerator) Compile(stmts []parser.Statement) error {
 	return err
 }
 
-func (c *CodeGenerator) compileStmt(offsets *Offsets, stmt parser.Statement, reg Register) (Register, error) {
+func (c *CodeGenerator) compileStmt(env *Offsets, stmt parser.Statement, reg Register) (Register, error) {
 	switch typed := stmt.(type) {
 	case *parser.ExprStatement:
-		return c.compileExpr(offsets, typed.Expr, reg)
+		return c.compileExpr(env, typed.Expr, reg)
 	case *parser.Block:
-		return c.compileBlock(offsets, typed, reg)
+		return c.compileBlock(env, typed, reg)
 	case *parser.VarDeclaration:
-		return c.compileVarDeclaration(offsets, typed, reg)
+		return c.compileVarDeclaration(env, typed, reg)
 	case *parser.VarAssignment:
-		return c.compileVarAssignment(offsets, typed, reg)
+		return c.compileVarAssignment(env, typed, reg)
 	case *parser.IfStatement:
-		return c.compileIf(offsets, typed, reg)
+		return c.compileIf(env, typed, reg)
 	case *parser.WhileStatement:
-		return c.compileWhile(offsets, typed, reg)
+		return c.compileWhile(env, typed, reg)
+	case *parser.ForStatement:
+		return c.compileFor(env, typed, reg)
 	}
 	return 0, fmt.Errorf("Unexpected statement %v", stmt)
+}
+
+func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStatement, reg Register) (Register, error) {
+	env := parent
+	allocationRequired := false
+	if varDecl, ok := forStatement.VarDecl.(*parser.VarDeclaration); ok {
+		env = NewOffsets(parent)
+		env.Put(varDecl)
+		env.AlignStackSize()
+		c.Prog.Emit(StackAllocator{
+			Value: Imm(env.StackSize),
+		})
+		allocationRequired = true
+	}
+
+	reg, err := c.compileStmt(env, forStatement.VarDecl, reg)
+	if err != nil {
+		return reg, err
+	}
+
+	forLoopLabel := NewLabel(ForLoop)
+	forLoopEndLabel := NewLabel(ForLoopEnd)
+	c.Prog.Emit(forLoopLabel)
+	reg, err = c.compileExpr(env, forStatement.Condition, reg)
+	if err != nil {
+		return reg, err
+	}
+	c.Prog.Emit(Cbz{
+		A: reg,
+		Label: forLoopEndLabel,
+	})
+	reg, err = c.compileStmt(env, forStatement.Block, reg)
+	if err != nil {
+		return reg, err
+	}
+	reg, err = c.compileStmt(env, forStatement.Increment, reg)
+	c.Prog.Emit(Bjump{
+		Label: forLoopLabel,
+	})
+	c.Prog.Emit(forLoopEndLabel)
+
+
+	if allocationRequired {
+		c.Prog.Emit(StackDeallocator{
+			Value: Imm(env.StackSize),
+		})
+	}
+	return reg, nil
 }
 
 func (c *CodeGenerator) compileWhile(env *Offsets, whileStatement *parser.WhileStatement, reg Register) (Register, error) {
@@ -138,7 +188,6 @@ func (c *CodeGenerator) compileBlock(parent *Offsets, block *parser.Block, reg R
 			Value: Imm(offsets.StackSize),
 		})
 	}
-
 
 	for _, stmt := range block.Stmts {
 		_, err := c.compileStmt(offsets, stmt, reg)
@@ -225,8 +274,8 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 					B: right,
 				},
 			})
-		return reg, nil
 		}
+		return reg, nil
 	case *parser.BinaryExpression:
 		left, err := c.compileExpr(offsets, e.Left, reg)
 		if err != nil {
@@ -365,7 +414,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 		return reg, nil
 	}
 
-	return 0, fmt.Errorf("Unexpected expression %v", expr)
+	return 0, fmt.Errorf("Unexpected expression %v, %t", expr, expr)
 }
 
 func (c *CodeGenerator) loadInt(reg Register, value int) []Instruction {
