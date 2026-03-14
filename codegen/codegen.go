@@ -8,6 +8,8 @@ import (
 	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
+type IdentifierOffsets = map[string]int
+
 type Program struct {
 	Instructions []Instruction
 }
@@ -48,15 +50,114 @@ func NewCodeGenerator() *CodeGenerator {
 	}
 }
 
-func (c *CodeGenerator) CompileStmt(stmt parser.Statement, reg Register) (Register, error) {
-	switch e := stmt.(type) {
+func (c *CodeGenerator) Compile(stmts []parser.Statement) error {
+	block := &parser.Block{Stmts: stmts}
+	_, err := c.compileStmt(nil, block, 0)
+	return err
+}
+
+func (c *CodeGenerator) compileStmt(offsets *Offsets, stmt parser.Statement, reg Register) (Register, error) {
+	switch typed := stmt.(type) {
 	case *parser.ExprStatement:
-		return c.compileExpr(e.Expr, reg)
+		return c.compileExpr(offsets, typed.Expr, reg)
+	case *parser.Block:
+		return c.compileBlock(offsets, typed, reg)
+	case *parser.VarDeclaration:
+		return c.compileVarDeclaration(offsets, typed, reg)
+	case *parser.VarAssignment:
+		return c.compileVarAssignment(offsets, typed, reg)
+	case *parser.IfStatement:
+		return c.compileIf(offsets, typed, reg)
 	}
 	return 0, fmt.Errorf("Unexpected statement %v", stmt)
 }
 
-func (c *CodeGenerator) compileExpr(expr parser.Expression, reg Register) (Register, error) {
+func (c *CodeGenerator) compileIf(env *Offsets, ifStatement *parser.IfStatement, reg Register) (Register, error) {
+	endIfLabel := NewLabel(EndIfType)
+	elseLabel := NewLabel(ElseType)
+	reg, err := c.compileExpr(env, ifStatement.Condition, reg)
+	c.Prog.Emit(Cbz{
+		A: reg,
+		Label: elseLabel,
+	})
+	if err != nil {
+		return reg, err
+	}
+	reg, err = c.compileStmt(env, ifStatement.Block, reg)
+	if err != nil {
+		return reg, err
+	}
+	c.Prog.Emit(Bjump{
+		Label: endIfLabel,
+	})
+	c.Prog.Emit(elseLabel)
+	if ifStatement.ElseBlock != nil {
+		reg, err = c.compileStmt(env, ifStatement.ElseBlock, reg)
+	}
+	c.Prog.Emit(endIfLabel)
+
+	return reg, err
+}
+
+func (c *CodeGenerator) compileBlock(parent *Offsets, block *parser.Block, reg Register) (Register, error) {
+	offsets := NewOffsets(parent)
+	for _, stmt := range block.Stmts {
+		if decl, ok := stmt.(*parser.VarDeclaration); ok {
+			offsets.Put(decl)
+		}
+	}
+	offsets.AlignStackSize()
+
+	if offsets.StackSize > 0 {
+		c.Prog.Emit(StackAllocator{
+			Value: Imm(offsets.StackSize),
+		})
+	}
+
+
+	for _, stmt := range block.Stmts {
+		_, err := c.compileStmt(offsets, stmt, reg)
+		if err != nil {
+			return reg, err
+		}
+	}
+
+	if offsets.StackSize > 0 {
+		c.Prog.Emit(StackDeallocator{
+			Value: Imm(offsets.StackSize),
+		})
+	}
+
+	return reg, nil
+}
+
+func (c *CodeGenerator) compileVarDeclaration(offsets *Offsets, varDecl *parser.VarDeclaration, reg Register) (Register, error) {
+	reg, err := c.compileExpr(offsets, varDecl.Expr, reg)
+	if err != nil {
+		return reg, err
+	}
+
+	c.Prog.Emit(Str{
+		A: reg,
+		Offset: Imm(offsets.Get(varDecl.Identifier)),
+	})
+	return reg, nil
+}
+
+func (c *CodeGenerator) compileVarAssignment(offsets *Offsets, varAssignment *parser.VarAssignment, reg Register) (Register, error) {
+	reg, err := c.compileExpr(offsets, varAssignment.Expr, reg)
+	if err != nil {
+		return reg, err
+	}
+
+	c.Prog.Emit(Str{
+		A: reg,
+		Offset: Imm(offsets.Get(varAssignment.Identifier)),
+	})
+	return reg, nil
+}
+
+func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, reg Register) (Register, error) {
 	switch e := expr.(type) {
 	case *parser.IntegerLiteral:
 		instructions := c.loadInt(reg, e.Value)
@@ -69,9 +170,15 @@ func (c *CodeGenerator) compileExpr(expr parser.Expression, reg Register) (Regis
 			c.Prog.Emit(Mov{reg, FalseImm})
 		}
 		return reg, nil
+	case *parser.IdentifierLiteral:
+		c.Prog.Emit(Ldr{
+			A: reg,
+			Offset: Imm(offsets.Get(e.Value)),
+		})
+		return reg, nil
 	case *parser.UnaryExpression:
 		left := reg
-		right, err := c.compileExpr(e.Right, reg+1)
+		right, err := c.compileExpr(offsets, e.Right, reg+1)
 		if err != nil {
 			return 0, err
 		}
@@ -96,11 +203,11 @@ func (c *CodeGenerator) compileExpr(expr parser.Expression, reg Register) (Regis
 		return reg, nil
 		}
 	case *parser.BinaryExpression:
-		left, err := c.compileExpr(e.Left, reg)
+		left, err := c.compileExpr(offsets, e.Left, reg)
 		if err != nil {
 			return 0, err
 		}
-		right, err := c.compileExpr(e.Right, reg+1)
+		right, err := c.compileExpr(offsets,e.Right, reg+1)
 		if err != nil {
 			return 0, err
 		}

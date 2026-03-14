@@ -176,3 +176,85 @@ type CSet struct {
 func (s CSet) String() string {
 	return fmt.Sprintf("    cset %v, %v", s.A, s.Value)
 }
+
+type StackAllocator struct {
+	Value Imm
+}
+
+func (a StackAllocator) String() string {
+	return fmt.Sprintf("    sub sp, sp, %v", a.Value)
+}
+
+type StackDeallocator struct {
+	Value Imm
+}
+
+func (a StackDeallocator) String() string {
+	return fmt.Sprintf("    add sp, sp, %v", a.Value)
+}
+
+type Str struct {
+	A Register
+	Offset Imm
+}
+
+func (s Str) String() string {
+	return fmt.Sprintf("    str %v, [sp, %v]", s.A, s.Offset)
+}
+
+type Ldr struct {
+	A Register
+	Offset Imm
+}
+
+func (s Ldr) String() string {
+	return fmt.Sprintf("    ldr %v, [sp, %v]", s.A, s.Offset)
+}
+
+const (
+	EndIfType LabelType = "end_if"
+	ElseType LabelType = "else"
+)
+
+type LabelType string
+
+var labelCounter = 0
+
+type Label struct {
+	LabelType LabelType
+	Index int
+}
+
+func NewLabel(labelType LabelType) Label {
+	index := labelCounter
+	labelCounter++
+	return Label{
+		LabelType: labelType,
+		Index: index,
+	}
+}
+
+func (s Label) Value() string {
+	return fmt.Sprintf("%v_%v", s.LabelType, s.Index)
+}
+
+func (s Label) String() string {
+	return fmt.Sprintf("    %v:", s.Value())
+}
+
+type Cbz struct {
+	A Register
+	Label Label
+}
+
+func (s Cbz) String() string {
+	return fmt.Sprintf("    cbz %v, %v", s.A, s.Label.Value())
+}
+
+type Bjump struct {
+	Label Label
+}
+
+func (b Bjump) String() string {
+	return fmt.Sprintf("    B %v", b.Label.Value())
+}

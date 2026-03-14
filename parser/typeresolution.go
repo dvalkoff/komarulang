@@ -67,6 +67,9 @@ func (t *TypeResolver) resolveVarDeclaration(env TokenEnv, varDecl *VarDeclarati
 	if err != nil {
 		return err
 	}
+	if env.Exists(varDecl.Identifier) {
+		return fmt.Errorf("Variable %v already exists", varDecl.Identifier)
+	}
 	if specifiedType != token.NotSpecified && !t.compatible(specifiedType, calculatedType) {
 		return TypeError{Expected: specifiedType, Got: calculatedType}
 	}

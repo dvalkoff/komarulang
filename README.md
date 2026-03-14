@@ -7,6 +7,8 @@ var b = true // bool
 
 a = 2 // reassignment
 
+print(a) // stdout builtin "function". techically it's a keyword for now
+
 { // code block. variables are local
     var d = 3
     // arithmetic operations
@@ -43,9 +45,6 @@ a = 2 // reassignment
     print(e ^ f)
 }
 
-
-print(a) // stdout builtin "function". techically it's a keyword for now
-
 // if else statements full support
 if a > 5 {
     print(a)
@@ -75,6 +74,12 @@ if a > 5 {
     for i = 1; i <= 10; i = i + 1 {
         print(i)
     }
+}
+
+{
+    var x int = 1 // declaring a variable with a specific type
+    var y = 1 + x // type inference
+    // y = false - compile time type error
 }
 ```
 

@@ -80,11 +80,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	resolver := parser.TypeResolver{}
+	if err := resolver.Resolve(stmts); err != nil {
+		panic(err)
+	}
 	codegen := codegen.NewCodeGenerator()
-	for _, stmt := range stmts {
-		if _, err := codegen.CompileStmt(stmt, 0); err != nil {
-			panic(err)
-		}
+	if err := codegen.Compile(stmts); err != nil {
+		panic(err)
 	}
 	assemblyCode := codegen.Prog.String()
 
