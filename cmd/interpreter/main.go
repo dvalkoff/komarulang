@@ -4,96 +4,52 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/dvalkoff/komarulang/env"
 	"github.com/dvalkoff/komarulang/parser"
 	"github.com/dvalkoff/komarulang/tokenizer"
 )
 
-type Environment struct {
-	data map[string]any
-	parent *Environment
-}
-
-func NewEnvironment(parent *Environment) *Environment {
-	return &Environment{
-		data: make(map[string]any),
-		parent: parent,
-	}
-}
-
-func (e *Environment) Exists(key string) bool {
-	if e == nil {
-		return false
-	}
-	if _, ok := e.data[key]; ok {
-		return true
-	}
-	return e.parent.Exists(key)
-}
-
-func (e *Environment) Get(key string) (any, bool) {
-	if e == nil {
-		return nil, false
-	}
-	if val, ok := e.data[key]; ok {
-		return val, true
-	}
-	return e.parent.Get(key)
-}
-
-func (e *Environment) New(key string, val any) {
-	e.data[key] = val
-}
-
-func (e *Environment) Set(key string, val any) {
-	if _, ok := e.data[key]; ok {
-		e.data[key] = val
-		return
-	}
-	e.parent.Set(key, val)
-}
-
-
-func interpretStmt(env *Environment, stmt parser.Statement) {
+func interpretStmt(env *env.Environment[any], stmt parser.Statement) {
 	switch typed := stmt.(type) {
-	case parser.Block:
+	case *parser.Block:
 		interpretBlock(env, typed)
-	case parser.VarDeclaration:
+	case *parser.VarDeclaration:
 		identifier := typed.Identifier
 		if env.Exists(identifier) {
 			panic(fmt.Sprintf("variable %v already exist", identifier))
 		}
 		value := evaluate(env, typed.Expr)
 		env.New(identifier, value)
-	case parser.VarAssignment:
+	case *parser.VarAssignment:
 		identifier := typed.Identifier
 		if !env.Exists(identifier) {
 			panic(fmt.Sprintf("variable %v does not exist", identifier))
 		}
 		value := evaluate(env, typed.Expr)
 		env.Set(identifier, value)
-	case parser.ExprStatement:
+	case *parser.ExprStatement:
 		evaluate(env, typed.Expr)
-	case parser.PrintStatement:
+	case *parser.PrintStatement:
 		result := evaluate(env, typed.Expr)
 		fmt.Println(result)
-	case parser.IfStatement:
+	case *parser.IfStatement:
 		interpretIf(env, typed)
-	case parser.WhileStatement:
+	case *parser.WhileStatement:
 		interpretWhile(env, typed)
-	case parser.ForStatement:
+	case *parser.ForStatement:
 		interpretFor(env, typed)
 	}
 }
 
-func interpretBlock(parentEnv *Environment, block parser.Block) {
-	env := NewEnvironment(parentEnv)
+func interpretBlock(parentEnv *env.Environment[any], block *parser.Block) {
+	env := env.NewEnvironment[any](parentEnv)
 	for _, stmt := range block.Stmts {
 		interpretStmt(env, stmt)
 	}
 }
 
-func interpretFor(parentEnv *Environment, forStatement parser.ForStatement) {
-	env := NewEnvironment(parentEnv)
+func interpretFor(parentEnv *env.Environment[any], forStatement *parser.ForStatement) {
+	env := env.NewEnvironment[any](parentEnv)
 	interpretStmt(env, forStatement.VarDecl)
 	for evaluateCondition(env, forStatement.Condition) {
 		interpretStmt(env, forStatement.Block)
@@ -101,13 +57,13 @@ func interpretFor(parentEnv *Environment, forStatement parser.ForStatement) {
 	}
 }
 
-func interpretWhile(env *Environment, whileStmt parser.WhileStatement) {
+func interpretWhile(env *env.Environment[any], whileStmt *parser.WhileStatement) {
 	for evaluateCondition(env, whileStmt.Condition) {
 		interpretStmt(env, whileStmt.Block)
 	}
 }
 
-func interpretIf(env *Environment, ifStmt parser.IfStatement) {
+func interpretIf(env *env.Environment[any], ifStmt *parser.IfStatement) {
 	condition := evaluateCondition(env, ifStmt.Condition)
 	if condition {
 		interpretStmt(env, ifStmt.Block)
@@ -117,7 +73,7 @@ func interpretIf(env *Environment, ifStmt parser.IfStatement) {
 	}
 }
 
-func evaluateCondition(env *Environment, condition parser.Expression) bool {
+func evaluateCondition(env *env.Environment[any], condition parser.Expression) bool {
 	conditionValue := evaluate(env, condition)
 	cond, ok := conditionValue.(bool)
 	if !ok {
@@ -126,17 +82,17 @@ func evaluateCondition(env *Environment, condition parser.Expression) bool {
 	return cond
 }
 
-func evaluate(env *Environment, ast parser.Expression) any {
+func evaluate(env *env.Environment[any], ast parser.Expression) any {
 	switch typed := ast.(type) {
-	case parser.BinaryExpression:
+	case *parser.BinaryExpression:
 		return evaluateBinaryOperation(evaluate(env, typed.Left), evaluate(env, typed.Right), typed.Operator)
-	case parser.UnaryExpression:
+	case *parser.UnaryExpression:
 		return evaluateUnaryOperation(evaluate(env, typed.Right), typed.Operator)
-	case parser.BooleanLiteral:
+	case *parser.BooleanLiteral:
 		return typed.Value
-	case parser.IntegerLiteral:
+	case *parser.IntegerLiteral:
 		return typed.Value
-	case parser.IdentifierLiteral:
+	case *parser.IdentifierLiteral:
 		if value, ok := env.Get(typed.Value); ok {
 			return value
 		} else {
@@ -230,7 +186,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	env := NewEnvironment(nil)
+	resolver := parser.TypeResolver{}
+	err = resolver.Resolve(prog)
+	if err != nil {
+		panic(err)
+	}
+	
+	env := env.NewEnvironment[any](nil)
 	for _, decl := range prog {
 		interpretStmt(env, decl)
 	}

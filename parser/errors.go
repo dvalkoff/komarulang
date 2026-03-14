@@ -16,6 +16,24 @@ func (e ParserError) Error() string {
 	return fmt.Sprintf("Expected %v  Got: %v", tokenToString(e.Expected), tokenToString(e.Got))
 }
 
+type TypeError struct {
+	Expected token.VarType
+	Got token.VarType
+}
+
+func (e TypeError) Error() string {
+	return fmt.Sprintf("Expected %v  Got: %v", typeToString(e.Expected), typeToString(e.Got))
+}
+
+type NotCompatibleOperationError struct {
+	Operation token.TokenType
+	Type token.VarType
+}
+
+func (e NotCompatibleOperationError) Error() string {
+	return fmt.Sprintf("Operation %v  does not support type %v", tokenToString(e.Operation), typeToString(e.Type))
+}
+
 func tokenToString(t token.TokenType) string {
 	switch t {
 	case token.Plus:
@@ -86,6 +104,23 @@ func tokenToString(t token.TokenType) string {
 		return "||"
 	case token.Caret:
 		return "^"
+	case token.Type:
+		return "<type>"
+	}
+	return ""
+}
+
+
+func typeToString(t token.VarType) string {
+	switch t {
+	case token.VoidType:
+		return "<void>"
+	case token.IntType:
+		return "<int>"
+	case token.BoolType:
+		return "<bool>"
+	case token.IdentifierType:
+		return "<identifier>"
 	}
 	return ""
 }

@@ -50,7 +50,7 @@ func NewCodeGenerator() *CodeGenerator {
 
 func (c *CodeGenerator) CompileStmt(stmt parser.Statement, reg Register) (Register, error) {
 	switch e := stmt.(type) {
-	case parser.ExprStatement:
+	case *parser.ExprStatement:
 		return c.compileExpr(e.Expr, reg)
 	}
 	return 0, fmt.Errorf("Unexpected statement %v", stmt)
@@ -58,18 +58,18 @@ func (c *CodeGenerator) CompileStmt(stmt parser.Statement, reg Register) (Regist
 
 func (c *CodeGenerator) compileExpr(expr parser.Expression, reg Register) (Register, error) {
 	switch e := expr.(type) {
-	case parser.IntegerLiteral:
+	case *parser.IntegerLiteral:
 		instructions := c.loadInt(reg, e.Value)
 		c.Prog.Emit(instructions...)
 		return reg, nil
-	case parser.BooleanLiteral:
+	case *parser.BooleanLiteral:
 		if e.Value {
 			c.Prog.Emit(Mov{reg, TrueImm})
 		} else {
 			c.Prog.Emit(Mov{reg, FalseImm})
 		}
 		return reg, nil
-	case parser.UnaryExpression:
+	case *parser.UnaryExpression:
 		left := reg
 		right, err := c.compileExpr(e.Right, reg+1)
 		if err != nil {
@@ -95,7 +95,7 @@ func (c *CodeGenerator) compileExpr(expr parser.Expression, reg Register) (Regis
 			})
 		return reg, nil
 		}
-	case parser.BinaryExpression:
+	case *parser.BinaryExpression:
 		left, err := c.compileExpr(e.Left, reg)
 		if err != nil {
 			return 0, err

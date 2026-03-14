@@ -4,7 +4,7 @@ import "slices"
 
 const (
 	// operators
-	Plus = iota
+	Plus TokenType = iota
 	Minus
 
 	Star
@@ -44,11 +44,24 @@ const (
 	While
 	For
 
+	// types
+	Type
+
 	EOF
 	EOL
 )
 
 type TokenType int
+
+const (
+	NotSpecified VarType = VarType(-1)
+	BoolType VarType = iota
+	IntType
+	VoidType
+	IdentifierType
+)
+
+type VarType int
 
 func (t TokenType) Match(types ...TokenType) bool {
 	return slices.Contains(types, t)

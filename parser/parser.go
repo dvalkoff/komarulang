@@ -7,7 +7,9 @@ import (
 	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
-type Expression any
+type Expression interface {
+	Type() token.VarType
+}
 
 type Statement interface{
 	Statement()
@@ -20,47 +22,48 @@ type ForStatement struct {
 	Block Statement
 }
 
-func (s ForStatement) Statement() {}
+func (s *ForStatement) Statement() {}
 
 type WhileStatement struct {
 	Condition Expression
 	Block Statement
 }
 
-func (s WhileStatement) Statement() {}
+func (s *WhileStatement) Statement() {}
 
 type VarDeclaration struct {
+	VarType token.VarType
 	Identifier string
 	Expr Expression
 }
 
-func (d VarDeclaration) Statement() {}
+func (d *VarDeclaration) Statement() {}
 
 type VarAssignment struct {
 	Identifier string
 	Expr Expression
 }
 
-func (d VarAssignment) Statement() {}
+func (d *VarAssignment) Statement() {}
 
 
 type ExprStatement struct {
 	Expr Expression
 }
 
-func (s ExprStatement) Statement() {}
+func (s *ExprStatement) Statement() {}
 
 type PrintStatement struct {
 	Expr Expression
 }
 
-func (s PrintStatement) Statement() {}
+func (s *PrintStatement) Statement() {}
 
 type Block struct {
 	Stmts []Statement
 }
 
-func (s Block) Statement() {}
+func (s *Block) Statement() {}
 
 type IfStatement struct {
 	Condition Expression
@@ -68,29 +71,51 @@ type IfStatement struct {
 	ElseBlock Statement
 }
 
-func (i IfStatement) Statement() {}
+func (i *IfStatement) Statement() {}
 
 type IntegerLiteral struct {
 	Value int
+}
+
+func (e *IntegerLiteral) Type() token.VarType {
+	return token.IntType
 }
 
 type BooleanLiteral struct {
 	Value bool
 }
 
+func (e *BooleanLiteral) Type() token.VarType {
+	return token.BoolType
+}
+
 type IdentifierLiteral struct {
 	Value string
 }
 
+func (e *IdentifierLiteral) Type() token.VarType {
+	return token.IdentifierType
+}
+
 type BinaryExpression struct {
+	ExprType token.VarType
 	Left     Expression
 	Operator token.TokenType
 	Right    Expression
 }
 
+func (e *BinaryExpression) Type() token.VarType {
+	return e.ExprType
+}
+
 type UnaryExpression struct {
+	ExprType token.VarType
 	Operator token.TokenType
 	Right    Expression
+}
+
+func (e *UnaryExpression) Type() token.VarType {
+	return e.ExprType
 }
 
 type Parser struct {
@@ -144,7 +169,7 @@ func (p *Parser) declaration() (Statement, error) {
 	return stmt, nil
 }
 
-func (p *Parser) block() (Statement, error) {
+func (p *Parser) block() (*Block, error) {
 	stmts := make([]Statement, 0)
 	for !p.isEOF() && p.peek().TokenType != token.RightBrace {
 		stmt, err := p.declaration()
@@ -161,10 +186,10 @@ func (p *Parser) block() (Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Block{Stmts: stmts}, nil
+	return &Block{Stmts: stmts}, nil
 }
 
-func (p *Parser) ifStatement() (Statement, error) {
+func (p *Parser) ifStatement() (*IfStatement, error) {
 	condition, err := p.expression()
 	if err != nil {
 		return nil, err
@@ -192,10 +217,10 @@ func (p *Parser) ifStatement() (Statement, error) {
 			return nil, err
 		}
 	}
-	return IfStatement{Condition: condition, Block: block, ElseBlock: elseBlock}, nil
+	return &IfStatement{Condition: condition, Block: block, ElseBlock: elseBlock}, nil
 }
 
-func (p *Parser) forStatement() (Statement, error) {
+func (p *Parser) forStatement() (*ForStatement, error) {
 	var varDecl Statement
 	var err error
 	switch {
@@ -238,7 +263,7 @@ func (p *Parser) forStatement() (Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ForStatement{
+	return &ForStatement{
 		VarDecl: varDecl,
 		Condition: condition,
 		Increment: increment,
@@ -246,7 +271,7 @@ func (p *Parser) forStatement() (Statement, error) {
 	}, nil
 }
 
-func (p *Parser) whileStatement() (Statement, error) {
+func (p *Parser) whileStatement() (*WhileStatement, error) {
 	condition, err := p.expression()
 	if err != nil {
 		return nil, err
@@ -258,14 +283,20 @@ func (p *Parser) whileStatement() (Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	return WhileStatement{Condition: condition, Block: block}, nil
+	return &WhileStatement{Condition: condition, Block: block}, nil
 }
 
-func (p *Parser) varDeclaration() (Statement, error) {
+func (p *Parser) varDeclaration() (*VarDeclaration, error) {
 	if !p.match(token.Identifier) {
 		return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
 	}
 	identifier := p.previous().Value.(string)
+
+	varType := token.NotSpecified
+	if p.match(token.Type) {
+		varType = p.previous().Value.(token.VarType)
+	}
+
 	err := p.consume(token.Equal)
 	if err != nil {
 		return nil, err
@@ -274,17 +305,17 @@ func (p *Parser) varDeclaration() (Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	return VarDeclaration{Identifier: identifier, Expr: expr}, nil
+	return &VarDeclaration{VarType: varType, Identifier: identifier, Expr: expr}, nil
 }
 
-func (p *Parser) assignment() (Statement, error) {
+func (p *Parser) assignment() (*VarAssignment, error) {
 	identifier := p.previous().Value.(string)
 	err := p.consume(token.Equal)
 	expr, err := p.expression()
 	if err != nil {
 		return nil, err
 	}
-	return VarAssignment{Identifier: identifier, Expr: expr}, nil
+	return &VarAssignment{Identifier: identifier, Expr: expr}, nil
 }
 
 func (p *Parser) statement() (Statement, error) {
@@ -295,10 +326,10 @@ func (p *Parser) statement() (Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ExprStatement{Expr: expression}, nil
+	return &ExprStatement{Expr: expression}, nil
 }
 
-func (p *Parser) printStatement() (Statement, error) {
+func (p *Parser) printStatement() (*PrintStatement, error) {
 	if !p.match(token.LeftParen) {
 		return nil, ParserError{Expected: token.LeftParen, Got: p.peek().TokenType}
 	}
@@ -309,7 +340,7 @@ func (p *Parser) printStatement() (Statement, error) {
 	if err := p.consume(token.RightParen); err != nil {
 		return nil, err
 	}
-	return PrintStatement{Expr: expression}, nil
+	return &PrintStatement{Expr: expression}, nil
 }
 
 func (p *Parser) expression() (Expression, error) {
@@ -328,7 +359,7 @@ func (p *Parser) logicalOr() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: token.BoolType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -345,7 +376,7 @@ func (p *Parser) logicalAnd() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: token.BoolType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -362,7 +393,7 @@ func (p *Parser) comparison() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: token.BoolType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -379,7 +410,7 @@ func (p *Parser) bitwiseOR() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: token.IntType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -395,7 +426,7 @@ func (p *Parser) bitwiseXOR() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: token.IntType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -411,7 +442,7 @@ func (p *Parser) bitwiseAND() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: token.IntType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -428,7 +459,7 @@ func (p *Parser) term() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: token.IntType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -445,7 +476,7 @@ func (p *Parser) factor() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = BinaryExpression{Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: token.IntType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -457,7 +488,14 @@ func (p *Parser) unary() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		return UnaryExpression{Operator: operator, Right: right}, nil
+		varType := token.NotSpecified
+		switch operator {
+		case token.Minus:
+			varType = token.IntType
+		case token.Bang:
+			varType = token.BoolType
+		}
+		return &UnaryExpression{ExprType: varType, Operator: operator, Right: right}, nil
 	}
 	return p.primary()
 }
@@ -465,11 +503,11 @@ func (p *Parser) unary() (Expression, error) {
 func (p *Parser) primary() (Expression, error) {
 	if p.match(token.Integer) {
 		intVal := p.previous().Value.(int)
-		return IntegerLiteral{intVal}, nil
+		return &IntegerLiteral{intVal}, nil
 	}
 	if p.match(token.Bool) {
 		boolVal := p.previous().Value.(bool)
-		return BooleanLiteral{boolVal}, nil
+		return &BooleanLiteral{boolVal}, nil
 	}
 	if p.match(token.LeftParen) {
 		expression, err := p.expression()
@@ -483,7 +521,7 @@ func (p *Parser) primary() (Expression, error) {
 	}
 	if p.match(token.Identifier) {
 		identifier := p.previous().Value.(string)
-		return IdentifierLiteral{Value: identifier}, nil
+		return &IdentifierLiteral{Value: identifier}, nil
 	}
 	return nil, ParserError{Expected: token.Integer, Got: p.peek().TokenType}
 }
