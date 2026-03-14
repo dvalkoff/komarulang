@@ -68,8 +68,33 @@ func (c *CodeGenerator) compileStmt(offsets *Offsets, stmt parser.Statement, reg
 		return c.compileVarAssignment(offsets, typed, reg)
 	case *parser.IfStatement:
 		return c.compileIf(offsets, typed, reg)
+	case *parser.WhileStatement:
+		return c.compileWhile(offsets, typed, reg)
 	}
 	return 0, fmt.Errorf("Unexpected statement %v", stmt)
+}
+
+func (c *CodeGenerator) compileWhile(env *Offsets, whileStatement *parser.WhileStatement, reg Register) (Register, error) {
+	whileLoopLabel := NewLabel(WhileLoop)
+	whileLoopEndLabel := NewLabel(WhileLoopEnd)
+	c.Prog.Emit(whileLoopLabel)
+	reg, err := c.compileExpr(env, whileStatement.Condition, reg)
+	if err != nil {
+		return reg, err
+	}
+	c.Prog.Emit(Cbz{
+		A: reg,
+		Label: whileLoopEndLabel,
+	})
+	reg, err = c.compileStmt(env, whileStatement.Block, reg)
+	if err != nil {
+		return reg, err
+	}
+	c.Prog.Emit(Bjump{
+		Label: whileLoopLabel,
+	})
+	c.Prog.Emit(whileLoopEndLabel)
+	return reg, nil
 }
 
 func (c *CodeGenerator) compileIf(env *Offsets, ifStatement *parser.IfStatement, reg Register) (Register, error) {

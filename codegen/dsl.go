@@ -214,6 +214,8 @@ func (s Ldr) String() string {
 const (
 	EndIfType LabelType = "end_if"
 	ElseType LabelType = "else"
+	WhileLoop LabelType = "while_loop"
+	WhileLoopEnd LabelType = "while_loop_end"
 )
 
 type LabelType string

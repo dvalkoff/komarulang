@@ -1,8 +1,5 @@
-var a = 123
-if a == 122 {
-    a = 1
-} else if a == 124 {
-    a = 2
-} else {
-    a = 3
+var i = 0
+while i < 10 {
+    i = i + 1
 }
+var b = i
