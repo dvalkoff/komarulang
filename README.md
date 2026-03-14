@@ -102,3 +102,16 @@ Compiling a .kl file:
 ./main calculator.kl
 ```
 
+### The compiled binary is approximately 30 times faster than the interpreter:
+Compiler test:
+```
+komarulang % time ./out 
+./out  0.01s user 0.00s system 2% cpu 0.466 total
+```
+Interpreter test:
+```
+komarulang % time ./main calculator.kl
+./main calculator.kl  0.31s user 0.01s system 99% cpu 0.320 total
+```
+
+

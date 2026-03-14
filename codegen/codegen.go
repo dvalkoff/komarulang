@@ -30,8 +30,8 @@ func (p Program) String() string {
 // x0 comes as a argument
 _print_int:
 
-    sub sp, sp, #32 // allocating 32 bytes for int64
-    mov x5, #19 // sp pointer to current char
+    sub sp, sp, #48 // allocating 32 bytes for int64
+    mov x5, #48 // sp pointer to current char
     str x30, [sp, #0]    // save x30
 
     mov x4, #10       // newline ASCII
@@ -87,7 +87,7 @@ _print_int:
     mov x0, #1       // stdout
     add x1, sp, x5      // x1 = address of string
     add x1, x1, #1      // x1 = address of string
-    mov x4, #19
+    mov x4, #48
     sub x2, x4, x5 // calculating and setting len
 
     svc #0x80
