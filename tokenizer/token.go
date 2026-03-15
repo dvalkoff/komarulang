@@ -67,6 +67,9 @@ func (t TokenType) Match(types ...TokenType) bool {
 type Token struct {
 	TokenType TokenType
 	Value     any
+	LineNumber int
+	StartIndex int
+	EndIndex   int
 }
 
 func GetEOF() Token {

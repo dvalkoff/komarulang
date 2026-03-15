@@ -86,64 +86,73 @@ func (t *LineTokenizer) Scan() ([]Token, error) {
 }
 
 func (t *LineTokenizer) token(val rune) (Token, error) {
+	start := t.current-1
+	end := t.current
 	switch val {
 	case '+':
-		return Token{TokenType: Plus, Value: nil}, nil
+		return Token{TokenType: Plus, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '-':
-		return Token{TokenType: Minus, Value: nil}, nil
+		return Token{TokenType: Minus, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '*':
-		return Token{TokenType: Star, Value: nil}, nil
+		return Token{TokenType: Star, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '%':
-		return Token{TokenType: Percent, Value: nil}, nil
+		return Token{TokenType: Percent, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '(':
-		return Token{TokenType: LeftParen, Value: nil}, nil
+		return Token{TokenType: LeftParen, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case ')':
-		return Token{TokenType: RightParen, Value: nil}, nil
+		return Token{TokenType: RightParen, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '{':
-		return Token{TokenType: LeftBrace, Value: nil}, nil
+		return Token{TokenType: LeftBrace, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '}':
-		return Token{TokenType: RightBrace, Value: nil}, nil
+		return Token{TokenType: RightBrace, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case ';':
-		return Token{TokenType: Semicolon, Value: nil}, nil
+		return Token{TokenType: Semicolon, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '^':
-		return Token{TokenType: Caret, Value: nil}, nil
+		return Token{TokenType: Caret, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case ',':
-		return Token{TokenType: Comma, Value: nil}, nil
+		return Token{TokenType: Comma, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '&':
 		if t.match('&') {
-			return Token{TokenType: AmpersandAmpersand, Value: nil}, nil
+			end++
+			return Token{TokenType: AmpersandAmpersand, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 		}
-		return Token{TokenType: Ampersand, Value: nil}, nil
+		return Token{TokenType: Ampersand, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '|':
 		if t.match('|') {
-			return Token{TokenType: VbarVbar, Value: nil}, nil
+			end++
+			return Token{TokenType: VbarVbar, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 		}
-		return Token{TokenType: Vbar, Value: nil}, nil
+		return Token{TokenType: Vbar, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '/':
 		if t.match('/') {
-			return Token{TokenType: EOL, Value: nil}, nil
+			end++
+			return Token{TokenType: EOL, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 		}
-		return Token{TokenType: Slash, Value: nil}, nil
+		return Token{TokenType: Slash, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '!':
 		if t.match('=') {
-			return Token{TokenType: BangEqual, Value: nil}, nil
+			end++
+			return Token{TokenType: BangEqual, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 		}
-		return Token{TokenType: Bang, Value: nil}, nil
+		return Token{TokenType: Bang, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '>':
 		if t.match('=') {
-			return Token{TokenType: GreaterEqual, Value: nil}, nil
+			end++
+			return Token{TokenType: GreaterEqual, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 		}
-		return Token{TokenType: Greater, Value: nil}, nil
+		return Token{TokenType: Greater, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '<':
 		if t.match('=') {
-			return Token{TokenType: LessEqual, Value: nil}, nil
+			end++
+			return Token{TokenType: LessEqual, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 		}
-		return Token{TokenType: Less, Value: nil}, nil
+		return Token{TokenType: Less, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '=':
 		if t.match('=') {
-			return Token{TokenType: EqualEqual, Value: nil}, nil
+			end++
+			return Token{TokenType: EqualEqual, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 		}
-		return Token{TokenType: Equal, Value: nil}, nil
+		return Token{TokenType: Equal, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	default:
 		if unicode.IsDigit(val) {
 			return t.integer()
@@ -156,54 +165,58 @@ func (t *LineTokenizer) token(val rune) (Token, error) {
 }
 
 func (t *LineTokenizer) integer() (Token, error) {
+	start := t.current-1
 	num := []rune{t.previous()}
 	for !t.isEnd() && unicode.IsDigit(t.peek()) {
 		num = append(num, t.advance())
 	}
+	end := t.current	
 	intValue, err := strconv.Atoi(string(num))
 	if err != nil {
 		return Token{}, err
 	}
-	return Token{TokenType: Integer, Value: intValue}, nil
+	return Token{TokenType: Integer, Value: intValue, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 }
 
 func (t *LineTokenizer) keywordOrIdentifier() (Token, error) {
+	start := t.current-1
 	wordRunes := []rune{t.previous()}
 	for !t.isEnd() && (unicode.IsLetter(t.peek()) || unicode.IsDigit(t.peek())) {
 		wordRunes = append(wordRunes, t.advance())
 	}
+	end := t.current
 	word := string(wordRunes)
 	switch word {
 	case "var":
-		return Token{TokenType: Var, Value: nil}, nil
+		return Token{TokenType: Var, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "true":
-		return Token{TokenType: Bool, Value: true}, nil
+		return Token{TokenType: Bool, Value: true, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "false":
-		return Token{TokenType: Bool, Value: false}, nil
+		return Token{TokenType: Bool, Value: false, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "print":
-		return Token{TokenType: Print, Value: nil}, nil
+		return Token{TokenType: Print, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "if":
-		return Token{TokenType: If, Value: nil}, nil
+		return Token{TokenType: If, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "else":
-		return Token{TokenType: Else, Value: nil}, nil
+		return Token{TokenType: Else, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "while":
-		return Token{TokenType: While, Value: nil}, nil
+		return Token{TokenType: While, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "for":
-		return Token{TokenType: For, Value: nil}, nil
+		return Token{TokenType: For, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "int":
-		return Token{TokenType: Type, Value: word}, nil
+		return Token{TokenType: Type, Value: word, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "bool":
-		return Token{TokenType: Type, Value: word}, nil
+		return Token{TokenType: Type, Value: word, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "fun":
-		return Token{TokenType: Fun, Value: nil}, nil
+		return Token{TokenType: Fun, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "return":
-		return Token{TokenType: Return, Value: nil}, nil
+		return Token{TokenType: Return, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "break":
-		return Token{TokenType: Break, Value: nil}, nil
+		return Token{TokenType: Break, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case "continue":
-		return Token{TokenType: Continue, Value: nil}, nil
+		return Token{TokenType: Continue, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	}
-	return Token{TokenType: Identifier, Value: word}, nil
+	return Token{TokenType: Identifier, Value: word, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 }
 
 func (t *LineTokenizer) match(val rune) bool {

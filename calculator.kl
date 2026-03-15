@@ -1,6 +1,8 @@
 
+fun printer(n int) {
+    print(n)
+}
+
 fun main () {
-    print(2)
-    return
-    print(1)
+    asd)   
 }

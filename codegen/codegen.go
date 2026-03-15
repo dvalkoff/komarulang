@@ -56,48 +56,49 @@ func (c *CodeGenerator) Compile(stmts []parser.Statement) error {
 			if decl.Name == c.EntrypointIdentifier {
 				entrypoint = decl
 			} else {
-				_, err := c.compileStmt(nil, decl, 0)
+				err := c.compileStmt(nil, decl)
 				if err != nil {
 					return err
 				}
 			}
 		}
 	}
-	_, err := c.compileStmt(nil, entrypoint, 0)
+	err := c.compileStmt(nil, entrypoint)
 	return err
 }
 
-func (c *CodeGenerator) compileStmt(env *Offsets, stmt parser.Statement, reg Register) (Register, error) {
+func (c *CodeGenerator) compileStmt(env *Offsets, stmt parser.Statement) error {
 	switch typed := stmt.(type) {
 	case *parser.ExprStatement:
-		return c.compileExpr(env, typed.Expr, reg)
+		_, err := c.compileExpr(env, typed.Expr, 0)
+		return err
 	case *parser.Block:
-		return c.compileBlock(env, typed, reg)
+		return c.compileBlock(env, typed)
 	case *parser.VarDeclaration:
-		return c.compileVarDeclaration(env, typed, reg)
+		return c.compileVarDeclaration(env, typed)
 	case *parser.VarAssignment:
-		return c.compileVarAssignment(env, typed, reg)
+		return c.compileVarAssignment(env, typed)
 	case *parser.IfStatement:
-		return c.compileIf(env, typed, reg)
+		return c.compileIf(env, typed)
 	case *parser.WhileStatement:
-		return c.compileWhile(env, typed, reg)
+		return c.compileWhile(env, typed)
 	case *parser.ForStatement:
-		return c.compileFor(env, typed, reg)
+		return c.compileFor(env, typed)
 	case *parser.PrintStatement:
-		return c.compilePrint(env, typed, reg)
+		return c.compilePrint(env, typed)
 	case *parser.BreakStatement:
-		return c.compileBreak(env, typed, reg)
+		return c.compileBreak(env, typed)
 	case *parser.ContinueStatement:
-		return c.compileContinue(env, typed, reg)
+		return c.compileContinue(env, typed)
 	case *parser.FunctionDecl:
-		return c.compileFunction(env, typed, reg)
+		return c.compileFunction(env, typed)
 	case *parser.ReturnStatement:
-		return c.compileReturnStmt(env, typed, reg)
+		return c.compileReturnStmt(env, typed)
 	}
-	return 0, fmt.Errorf("Unexpected statement %v", stmt)
+	return fmt.Errorf("Unexpected statement %v", stmt)
 }
 
-func (c *CodeGenerator) compileFunction(parent *Offsets, funcDecl *parser.FunctionDecl, reg Register) (Register, error) {
+func (c *CodeGenerator) compileFunction(parent *Offsets, funcDecl *parser.FunctionDecl) error {
 	subroutineDecl := NewSubroutineDecl(funcDecl.Name)
 	c.Prog.Emit(subroutineDecl)
 
@@ -125,15 +126,14 @@ func (c *CodeGenerator) compileFunction(parent *Offsets, funcDecl *parser.Functi
 	for _, arg := range funcDecl.Arguments {
 		err := c.compileFunArgument(offsets, arg, argumentRegister)
 		if err != nil {
-			return reg, err
+			return err
 		}
 		argumentRegister += 1
 	}
-	reg = Register(0)
 	for _, stmt := range block.Stmts {
-		_, err := c.compileStmt(offsets, stmt, reg)
+		err := c.compileStmt(offsets, stmt)
 		if err != nil {
-			return reg, err
+			return err
 		}
 	}
 
@@ -147,10 +147,10 @@ func (c *CodeGenerator) compileFunction(parent *Offsets, funcDecl *parser.Functi
 		Value: Imm(offsets.StackSize),
 	})
 	if funcDecl.Name == c.EntrypointIdentifier {
-		return c.compileExit(offsets, reg)
+		return c.compileExit(offsets)
 	}
 	c.Prog.Emit(AsmReturn{})
-	return reg, nil
+	return nil
 }
 
 func (c *CodeGenerator) compileFunArgument(env *Offsets, funArg *parser.FunctionArgument, reg Register) error {
@@ -161,7 +161,7 @@ func (c *CodeGenerator) compileFunArgument(env *Offsets, funArg *parser.Function
 	return nil
 }
 
-func (c *CodeGenerator) compileExit(env *Offsets, reg Register) (Register, error) {
+func (c *CodeGenerator) compileExit(env *Offsets) error {
 	c.Prog.Emit(Mov{
 		Dst: 0,
 		Src: Imm(0),
@@ -173,49 +173,58 @@ func (c *CodeGenerator) compileExit(env *Offsets, reg Register) (Register, error
 	c.Prog.Emit(Svc{
 		Value: "#0x80",
 	})
-	return reg, nil
+	return nil
 }
 
-func (c *CodeGenerator) compileReturnStmt(env *Offsets, returnStmt *parser.ReturnStatement, reg Register) (Register, error) {
-	reg, err := c.compileExpr(env, returnStmt.Expression, reg)
+func (c *CodeGenerator) compileReturnStmt(env *Offsets, returnStmt *parser.ReturnStatement) error {
+	reg, err := c.compileExpr(env, returnStmt.Expression, Register(0))
 	if err != nil {
-		return reg, err
+		return err
 	}
-	c.Prog.Emit(Mov{
-		0,
-		reg,
-	})
+	if reg != 0 {
+		c.Prog.Emit(Mov{
+			Register(0),
+			reg,
+		})
+	}
+
 	epilogueLabel := AsmLabel{returnStmt.EpilogueLabel.String()}
 	c.Prog.Emit(Bjump{
 		Label: epilogueLabel,
 	})
-	return reg, nil
+	return nil
 }
 
-func (c *CodeGenerator) compilePrint(env *Offsets, printStmt *parser.PrintStatement, reg Register) (Register, error) {
-	reg, err := c.compileExpr(env, printStmt.Expr, reg)
+func (c *CodeGenerator) compilePrint(env *Offsets, printStmt *parser.PrintStatement) error {
+	reg, err := c.compileExpr(env, printStmt.Expr, 0)
+	if reg != 0 {
+		c.Prog.Emit(Mov{
+			Register(0),
+			reg,
+		})
+	}
 	if err != nil {
-		return reg, err
+		return err
 	}
 	c.Prog.Emit(CallPrintSubroutine{})
-	return reg, nil
+	return nil
 }
 
-func (c *CodeGenerator) compileBreak(env *Offsets, breakStmt *parser.BreakStatement, reg Register) (Register, error) {
+func (c *CodeGenerator) compileBreak(env *Offsets, breakStmt *parser.BreakStatement) error {
 	c.Prog.Emit(Bjump{
 		Label: AsmLabel{breakStmt.GotoLabel.String()},
 	})
-	return reg, nil
+	return nil
 }
 
-func (c *CodeGenerator) compileContinue(env *Offsets, continueStmt *parser.ContinueStatement, reg Register) (Register, error) {
+func (c *CodeGenerator) compileContinue(env *Offsets, continueStmt *parser.ContinueStatement) error {
 	c.Prog.Emit(Bjump{
 		Label: AsmLabel{continueStmt.GotoLabel.String()},
 	})
-	return reg, nil
+	return nil
 }
 
-func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStatement, reg Register) (Register, error) {
+func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStatement) error {
 	env := parent
 	allocationRequired := false
 	if varDecl, ok := forStatement.VarDecl.(*parser.VarDeclaration); ok {
@@ -228,29 +237,29 @@ func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStat
 		allocationRequired = true
 	}
 
-	reg, err := c.compileStmt(env, forStatement.VarDecl, reg)
+	err := c.compileStmt(env, forStatement.VarDecl)
 	if err != nil {
-		return reg, err
+		return err
 	}
 
 	forLoopLabel := AsmLabel{forStatement.LabelStart.String()}
 	forLoopEndLabel := AsmLabel{forStatement.LabelEnd.String()}
 	incrementLabel := AsmLabel{forStatement.LabelIncrement.String()}
 	c.Prog.Emit(forLoopLabel)
-	reg, err = c.compileExpr(env, forStatement.Condition, reg)
+	conditionReg, err := c.compileExpr(env, forStatement.Condition, 0)
 	if err != nil {
-		return reg, err
+		return err
 	}
 	c.Prog.Emit(Cbz{
-		A:     reg,
+		A:     conditionReg,
 		Label: forLoopEndLabel,
 	})
-	reg, err = c.compileStmt(env, forStatement.Block, reg)
+	err = c.compileStmt(env, forStatement.Block)
 	if err != nil {
-		return reg, err
+		return err
 	}
 	c.Prog.Emit(incrementLabel)
-	reg, err = c.compileStmt(env, forStatement.Increment, reg)
+	err = c.compileStmt(env, forStatement.Increment)
 	c.Prog.Emit(Bjump{
 		Label: forLoopLabel,
 	})
@@ -261,60 +270,62 @@ func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStat
 			Value: Imm(env.StackSize),
 		})
 	}
-	return reg, nil
+	return nil
 }
 
-func (c *CodeGenerator) compileWhile(env *Offsets, whileStatement *parser.WhileStatement, reg Register) (Register, error) {
+func (c *CodeGenerator) compileWhile(env *Offsets, whileStatement *parser.WhileStatement) error {
 	whileLoopLabel := AsmLabel{whileStatement.LabelStart.String()}
 	whileLoopEndLabel := AsmLabel{whileStatement.LabelEnd.String()}
 	c.Prog.Emit(whileLoopLabel)
-	reg, err := c.compileExpr(env, whileStatement.Condition, reg)
+	conditionReg, err := c.compileExpr(env, whileStatement.Condition, 0)
 	if err != nil {
-		return reg, err
+		return err
 	}
 	c.Prog.Emit(Cbz{
-		A:     reg,
+		A:     conditionReg,
 		Label: whileLoopEndLabel,
 	})
-	reg, err = c.compileStmt(env, whileStatement.Block, reg)
+	err = c.compileStmt(env, whileStatement.Block)
 	if err != nil {
-		return reg, err
+		return err
 	}
 	c.Prog.Emit(Bjump{
 		Label: whileLoopLabel,
 	})
 	c.Prog.Emit(whileLoopEndLabel)
-	return reg, nil
+	return nil
 }
 
-func (c *CodeGenerator) compileIf(env *Offsets, ifStatement *parser.IfStatement, reg Register) (Register, error) {
+func (c *CodeGenerator) compileIf(env *Offsets, ifStatement *parser.IfStatement) error {
 	endIfLabel := AsmLabel{parser.NewLabel(parser.EndIfType).String()}
 	elseLabel := AsmLabel{parser.NewLabel(parser.ElseType).String()}
-	reg, err := c.compileExpr(env, ifStatement.Condition, reg)
+	conditionReg, err := c.compileExpr(env, ifStatement.Condition, 0)
 	c.Prog.Emit(Cbz{
-		A:     reg,
+		A:     conditionReg,
 		Label: elseLabel,
 	})
 	if err != nil {
-		return reg, err
+		return err
 	}
-	reg, err = c.compileStmt(env, ifStatement.Block, reg)
+	err = c.compileStmt(env, ifStatement.Block)
 	if err != nil {
-		return reg, err
+		return err
 	}
 	c.Prog.Emit(Bjump{
 		Label: endIfLabel,
 	})
 	c.Prog.Emit(elseLabel)
 	if ifStatement.ElseBlock != nil {
-		reg, err = c.compileStmt(env, ifStatement.ElseBlock, reg)
+		if err := c.compileStmt(env, ifStatement.ElseBlock); err != nil {
+			return err
+		}
 	}
 	c.Prog.Emit(endIfLabel)
 
-	return reg, err
+	return nil
 }
 
-func (c *CodeGenerator) compileBlock(parent *Offsets, block *parser.Block, reg Register) (Register, error) {
+func (c *CodeGenerator) compileBlock(parent *Offsets, block *parser.Block) error {
 	offsets := NewOffsets(parent)
 	for _, stmt := range block.Stmts {
 		if decl, ok := stmt.(*parser.VarDeclaration); ok {
@@ -330,9 +341,9 @@ func (c *CodeGenerator) compileBlock(parent *Offsets, block *parser.Block, reg R
 	}
 
 	for _, stmt := range block.Stmts {
-		_, err := c.compileStmt(offsets, stmt, reg)
+		err := c.compileStmt(offsets, stmt)
 		if err != nil {
-			return reg, err
+			return err
 		}
 	}
 
@@ -342,33 +353,33 @@ func (c *CodeGenerator) compileBlock(parent *Offsets, block *parser.Block, reg R
 		})
 	}
 
-	return reg, nil
+	return nil
 }
 
-func (c *CodeGenerator) compileVarDeclaration(offsets *Offsets, varDecl *parser.VarDeclaration, reg Register) (Register, error) {
-	reg, err := c.compileExpr(offsets, varDecl.Expr, reg)
+func (c *CodeGenerator) compileVarDeclaration(offsets *Offsets, varDecl *parser.VarDeclaration) error {
+	reg, err := c.compileExpr(offsets, varDecl.Expr, 0)
 	if err != nil {
-		return reg, err
+		return err
 	}
 
 	c.Prog.Emit(Str{
 		A:      reg,
 		Offset: Imm(offsets.Get(varDecl.Identifier)),
 	})
-	return reg, nil
+	return nil
 }
 
-func (c *CodeGenerator) compileVarAssignment(offsets *Offsets, varAssignment *parser.VarAssignment, reg Register) (Register, error) {
-	reg, err := c.compileExpr(offsets, varAssignment.Expr, reg)
+func (c *CodeGenerator) compileVarAssignment(offsets *Offsets, varAssignment *parser.VarAssignment) error {
+	reg, err := c.compileExpr(offsets, varAssignment.Expr, 0)
 	if err != nil {
-		return reg, err
+		return err
 	}
 
 	c.Prog.Emit(Str{
 		A:      reg,
 		Offset: Imm(offsets.Get(varAssignment.Identifier)),
 	})
-	return reg, nil
+	return nil
 }
 
 func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, reg Register) (Register, error) {

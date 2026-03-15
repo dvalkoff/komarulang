@@ -8,16 +8,16 @@ import (
 
 type ParserError struct {
 	Expected token.TokenType
-	Got      token.TokenType
+	Got      token.Token
 }
 
 func (e ParserError) Error() string {
-	return fmt.Sprintf("Expected %v  Got: %v", tokenToString(e.Expected), tokenToString(e.Got))
+	return fmt.Sprintf("line: %v:%v Expected %v  Got: %v", e.Got.LineNumber + 1, e.Got.StartIndex, tokenToString(e.Expected), tokenToString(e.Got.TokenType))
 }
 
 type TypeError struct {
 	Expected types.Type
-	Got      types.Type
+	Got types.Type
 }
 
 func (e TypeError) Error() string {

@@ -247,7 +247,13 @@ func (p *Parser) declaration() (Statement, error) {
 	case p.match(token.Var):
 		stmt, err = p.varDeclaration()
 	case p.match(token.Identifier):
-		stmt, err = p.assignment()
+		if p.match(token.LeftParen) {
+			p.rewind()
+			p.rewind()
+			stmt, err = p.statement()
+		} else {
+			stmt, err = p.assignment()
+		}
 	case p.match(token.LeftBrace):
 		stmt, err = p.block()
 	case p.match(token.If):
@@ -290,7 +296,7 @@ func (p *Parser) returnStatement() (*ReturnStatement, error) {
 
 func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 	if !p.match(token.Identifier) {
-		return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+		return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 	}
 	functionName := p.previous().Value.(string)
 	if err := p.consume(token.LeftParen); err != nil {
@@ -299,11 +305,11 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 	funArguments := make([]*FunctionArgument, 0)
 	if !p.isEOF() && p.peek().TokenType != token.RightParen {
 		if !p.match(token.Identifier) {
-			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+			return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 		}
 		paramName := p.previous().Value.(string)
 		if !p.match(token.Type) {
-			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+			return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 		}
 		paramType, err := types.FromToken(p.previous())
 		if err != nil {
@@ -316,14 +322,14 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 	}
 	for !p.isEOF() && p.peek().TokenType != token.RightParen {
 		if err := p.consume(token.Comma); err != nil {
-			return nil, ParserError{Expected: token.Comma, Got: p.peek().TokenType}
+			return nil, ParserError{Expected: token.Comma, Got: p.peek()}
 		}
 		if !p.match(token.Identifier) {
-			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+			return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 		}
 		paramName := p.previous().Value.(string)
 		if !p.match(token.Type) {
-			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+			return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 		}
 		paramType, err := types.FromToken(p.previous())
 		if err != nil {
@@ -335,7 +341,7 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 		})
 	}
 	if p.isEOF() {
-		return nil, ParserError{Expected: token.RightParen, Got: token.EOF}
+		return nil, ParserError{Expected: token.RightParen, Got: p.peek()}
 	}
 	p.consume(token.RightParen)
 
@@ -349,7 +355,7 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 	}
 
 	if !p.match(token.LeftBrace) {
-		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek().TokenType}
+		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek()}
 	}
 	funBlock, err := p.block()
 	if err != nil {
@@ -374,7 +380,7 @@ func (p *Parser) block() (*Block, error) {
 	}
 
 	if p.isEOF() {
-		return nil, ParserError{Expected: token.RightBrace, Got: token.EOF}
+		return nil, ParserError{Expected: token.RightBrace, Got: p.peek()}
 	}
 	err := p.consume(token.RightBrace)
 	if err != nil {
@@ -389,7 +395,7 @@ func (p *Parser) ifStatement() (*IfStatement, error) {
 		return nil, err
 	}
 	if !p.match(token.LeftBrace) {
-		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek().TokenType}
+		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek()}
 	}
 	block, err := p.block()
 	if err != nil {
@@ -403,8 +409,8 @@ func (p *Parser) ifStatement() (*IfStatement, error) {
 			elseBlock, err = p.block()
 		} else {
 			err = errors.Join(
-				ParserError{Expected: token.LeftBrace, Got: p.peek().TokenType},
-				ParserError{Expected: token.If, Got: p.peek().TokenType},
+				ParserError{Expected: token.LeftBrace, Got: p.peek()},
+				ParserError{Expected: token.If, Got: p.peek()},
 			)
 		}
 		if err != nil {
@@ -424,8 +430,8 @@ func (p *Parser) forStatement() (*ForStatement, error) {
 		varDecl, err = p.assignment()
 	default:
 		return nil, errors.Join(
-			ParserError{Expected: token.Var, Got: p.peek().TokenType},
-			ParserError{Expected: token.Identifier, Got: p.peek().TokenType},
+			ParserError{Expected: token.Var, Got: p.peek()},
+			ParserError{Expected: token.Identifier, Got: p.peek()},
 		)
 	}
 	if err != nil {
@@ -444,14 +450,14 @@ func (p *Parser) forStatement() (*ForStatement, error) {
 	}
 
 	if !p.match(token.Identifier) {
-		return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+		return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 	}
 	increment, err := p.assignment()
 	if err != nil {
 		return nil, err
 	}
 	if !p.match(token.LeftBrace) {
-		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek().TokenType}
+		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek()}
 	}
 	block, err := p.block()
 	if err != nil {
@@ -471,7 +477,7 @@ func (p *Parser) whileStatement() (*WhileStatement, error) {
 		return nil, err
 	}
 	if !p.match(token.LeftBrace) {
-		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek().TokenType}
+		return nil, ParserError{Expected: token.LeftBrace, Got: p.peek()}
 	}
 	block, err := p.block()
 	if err != nil {
@@ -482,7 +488,7 @@ func (p *Parser) whileStatement() (*WhileStatement, error) {
 
 func (p *Parser) varDeclaration() (*VarDeclaration, error) {
 	if !p.match(token.Identifier) {
-		return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+		return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 	}
 	identifier := p.previous().Value.(string)
 
@@ -529,7 +535,7 @@ func (p *Parser) statement() (Statement, error) {
 
 func (p *Parser) printStatement() (*PrintStatement, error) {
 	if !p.match(token.LeftParen) {
-		return nil, ParserError{Expected: token.LeftParen, Got: p.peek().TokenType}
+		return nil, ParserError{Expected: token.LeftParen, Got: p.peek()}
 	}
 	expression, err := p.expression()
 	if err != nil {
@@ -724,7 +730,7 @@ func (p *Parser) primary() (Expression, error) {
 		}
 		return &IdentifierLiteral{Value: identifier}, nil
 	}
-	return nil, ParserError{Expected: token.Integer, Got: p.peek().TokenType}
+	return nil, ParserError{Expected: token.Integer, Got: p.peek()}
 }
 
 func (p *Parser) evaluateFunCall(funName string) (*FunctionCall, error) {
@@ -748,7 +754,7 @@ func (p *Parser) evaluateFunCall(funName string) (*FunctionCall, error) {
 		parameters = append(parameters, param)
 	}
 	if p.isEOF() {
-		return nil, ParserError{Expected: token.RightParen, Got: token.EOF}
+		return nil, ParserError{Expected: token.RightParen, Got: p.peek()}
 	}
 	p.consume(token.RightParen)
 	return &FunctionCall{
@@ -762,7 +768,7 @@ func (p *Parser) consume(tokenType token.TokenType) error {
 		p.advance()
 		return nil
 	}
-	return ParserError{Expected: tokenType, Got: p.peek().TokenType}
+	return ParserError{Expected: tokenType, Got: p.peek()}
 }
 
 func (p *Parser) match(types ...token.TokenType) bool {
@@ -782,6 +788,14 @@ func (p *Parser) advance() token.Token {
 		p.current++
 	}
 	return p.previous()
+}
+
+func (p *Parser) rewind() token.Token {
+	if p.current == 0 {
+		return p.tokens[0]
+	}
+	p.current--
+	return p.peek()
 }
 
 func (p *Parser) peek() token.Token {

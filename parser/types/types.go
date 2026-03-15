@@ -24,6 +24,8 @@ func (t Type) TypeToString() string {
 		return "<bool>"
 	case IdentifierType:
 		return "<identifier>"
+	case VoidType:
+		return "<void>"
 	}
 	return ""
 }
