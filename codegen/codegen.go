@@ -394,6 +394,8 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 			c.Prog.Emit(Mov{reg, FalseImm})
 		}
 		return reg, nil
+	case *parser.VoidLiteral:
+		return reg, nil
 	case *parser.IdentifierLiteral:
 		c.Prog.Emit(Ldr{
 			A:      reg,

@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/dvalkoff/komarulang/parser/types"
 	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
 type Expression interface {
-	Type() token.VarType
+	Type() types.Type
 }
 
 type Statement interface {
@@ -19,7 +20,7 @@ type Statement interface {
 type FunctionDecl struct {
 	Name       string
 	Arguments  []*FunctionArgument
-	ReturnType token.VarType
+	ReturnType types.Type
 	Body       Statement
 	ReturnStmtsCount int
 	EpilogueLabel Label
@@ -28,7 +29,7 @@ type FunctionDecl struct {
 func (d *FunctionDecl) Statement() {}
 
 type FunctionArgument struct {
-	VarType       token.VarType
+	VarType       types.Type
 	Identifier    string
 }
 
@@ -37,21 +38,21 @@ type FunctionCall struct {
 	Arguments []Expression
 }
 
-func (d *FunctionCall) Type() token.VarType {
-	return token.IdentifierType
+func (d *FunctionCall) Type() types.Type {
+	return types.NotSpecified
 }
 
 func (c *FunctionCall) Statement() {}
 
 type ReturnStatement struct {
-	ReturnType    token.VarType
+	ReturnType    types.Type
 	Expression    Expression
 	EpilogueLabel Label
 }
 
 func (c *ReturnStatement) Statement() {}
 
-func (e *ReturnStatement) Type() token.VarType {
+func (e *ReturnStatement) Type() types.Type {
 	return e.ReturnType
 }
 
@@ -126,7 +127,7 @@ type WhileStatement struct {
 func (s *WhileStatement) Statement() {}
 
 type VarDeclaration struct {
-	VarType    token.VarType
+	VarType    types.Type
 	Identifier string
 	Expr       Expression
 }
@@ -170,44 +171,51 @@ type IntegerLiteral struct {
 	Value int
 }
 
-func (e *IntegerLiteral) Type() token.VarType {
-	return token.IntType
+func (e *IntegerLiteral) Type() types.Type {
+	return types.IntType
 }
 
 type BooleanLiteral struct {
 	Value bool
 }
 
-func (e *BooleanLiteral) Type() token.VarType {
-	return token.BoolType
+func (e *BooleanLiteral) Type() types.Type {
+	return types.BoolType
 }
 
 type IdentifierLiteral struct {
 	Value string
 }
 
-func (e *IdentifierLiteral) Type() token.VarType {
-	return token.NotSpecified
+func (e *IdentifierLiteral) Type() types.Type {
+	return types.NotSpecified
+}
+
+type VoidLiteral struct {
+}
+
+func (e *VoidLiteral) Type() types.Type {
+	return types.VoidType
 }
 
 type BinaryExpression struct {
-	ExprType token.VarType
+	ExprType types.Type
 	Left     Expression
 	Operator token.TokenType
 	Right    Expression
 }
 
-func (e *BinaryExpression) Type() token.VarType {
+func (e *BinaryExpression) Type() types.Type {
 	return e.ExprType
 }
 
 type UnaryExpression struct {
-	ExprType token.VarType
+	ExprType types.Type
 	Operator token.TokenType
 	Right    Expression
 }
 
-func (e *UnaryExpression) Type() token.VarType {
+func (e *UnaryExpression) Type() types.Type {
 	return e.ExprType
 }
 
@@ -275,9 +283,9 @@ func (p *Parser) returnStatement() (*ReturnStatement, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &ReturnStatement{ReturnType: token.NotSpecified, Expression: expression}, nil
+		return &ReturnStatement{ReturnType: types.NotSpecified, Expression: expression}, nil
 	}
-	return &ReturnStatement{ReturnType: token.VoidType, Expression: nil}, nil
+	return &ReturnStatement{ReturnType: types.VoidType, Expression: &VoidLiteral{}}, nil
 }
 
 func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
@@ -297,7 +305,10 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 		if !p.match(token.Type) {
 			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
 		}
-		paramType := p.previous().Value.(token.VarType)
+		paramType, err := types.FromToken(p.previous())
+		if err != nil {
+			return nil, err
+		}
 		funArguments = append(funArguments, &FunctionArgument{
 			VarType:    paramType,
 			Identifier: paramName,
@@ -314,7 +325,10 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 		if !p.match(token.Type) {
 			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
 		}
-		paramType := p.previous().Value.(token.VarType)
+		paramType, err := types.FromToken(p.previous())
+		if err != nil {
+			return nil, err
+		}
 		funArguments = append(funArguments, &FunctionArgument{
 			VarType:    paramType,
 			Identifier: paramName,
@@ -325,9 +339,13 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 	}
 	p.consume(token.RightParen)
 
-	returnType := token.VoidType
+	returnType := types.VoidType
 	if p.match(token.Type) {
-		returnType = p.previous().Value.(token.VarType)
+		var err error
+		returnType, err = types.FromToken(p.previous())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if !p.match(token.LeftBrace) {
@@ -468,9 +486,13 @@ func (p *Parser) varDeclaration() (*VarDeclaration, error) {
 	}
 	identifier := p.previous().Value.(string)
 
-	varType := token.NotSpecified
+	varType := types.NotSpecified
 	if p.match(token.Type) {
-		varType = p.previous().Value.(token.VarType)
+		var err error
+		varType, err = types.FromToken(p.previous())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	err := p.consume(token.Equal)
@@ -535,7 +557,7 @@ func (p *Parser) logicalOr() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = &BinaryExpression{ExprType: token.BoolType, Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: types.BoolType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -552,7 +574,7 @@ func (p *Parser) logicalAnd() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = &BinaryExpression{ExprType: token.BoolType, Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: types.BoolType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -569,7 +591,7 @@ func (p *Parser) comparison() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = &BinaryExpression{ExprType: token.BoolType, Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: types.BoolType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -586,7 +608,7 @@ func (p *Parser) bitwiseOR() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = &BinaryExpression{ExprType: token.IntType, Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: types.IntType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -602,7 +624,7 @@ func (p *Parser) bitwiseXOR() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = &BinaryExpression{ExprType: token.IntType, Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: types.IntType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -618,7 +640,7 @@ func (p *Parser) bitwiseAND() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = &BinaryExpression{ExprType: token.IntType, Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: types.IntType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -635,7 +657,7 @@ func (p *Parser) term() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = &BinaryExpression{ExprType: token.IntType, Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: types.IntType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -652,7 +674,7 @@ func (p *Parser) factor() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		expression = &BinaryExpression{ExprType: token.IntType, Left: expression, Operator: operator, Right: right}
+		expression = &BinaryExpression{ExprType: types.IntType, Left: expression, Operator: operator, Right: right}
 	}
 	return expression, nil
 }
@@ -664,12 +686,12 @@ func (p *Parser) unary() (Expression, error) {
 		if err != nil {
 			return nil, err
 		}
-		varType := token.NotSpecified
+		varType := types.NotSpecified
 		switch operator {
 		case token.Minus:
-			varType = token.IntType
+			varType = types.IntType
 		case token.Bang:
-			varType = token.BoolType
+			varType = types.BoolType
 		}
 		return &UnaryExpression{ExprType: varType, Operator: operator, Right: right}, nil
 	}

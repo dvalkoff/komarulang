@@ -4,17 +4,18 @@ import (
 	"fmt"
 
 	"github.com/dvalkoff/komarulang/env"
+	"github.com/dvalkoff/komarulang/parser/types"
 	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
-type TokenEnv = *env.Environment[token.VarType]
+type TokenEnv = *env.Environment[types.Type]
 
 type LoopStmt interface {
 	Statement
 }
 
 type SemanticAnalysisContext struct {
-	VarEnv           *env.Environment[token.VarType]
+	VarEnv           *env.Environment[types.Type]
 	FunEnv           *env.Environment[*FunctionDecl]
 	LabelEnv         *env.Environment[LoopStmt]
 	CurrentFunction  *FunctionDecl
@@ -27,7 +28,7 @@ func FromSemanticAnalysisContext(parent *SemanticAnalysisContext) *SemanticAnaly
 	return newSemanticAnalysisContext(parent.VarEnv, parent.FunEnv, parent.LabelEnv, parent.CurrentFunction)
 }
 
-func newSemanticAnalysisContext(varEnv *env.Environment[token.VarType], funEnv *env.Environment[*FunctionDecl], lavelEnv *env.Environment[LoopStmt], curFunc *FunctionDecl) *SemanticAnalysisContext {
+func newSemanticAnalysisContext(varEnv *env.Environment[types.Type], funEnv *env.Environment[*FunctionDecl], lavelEnv *env.Environment[LoopStmt], curFunc *FunctionDecl) *SemanticAnalysisContext {
 	return &SemanticAnalysisContext{
 		VarEnv:   env.NewEnvironment(varEnv),
 		FunEnv:   env.NewEnvironment(funEnv),
@@ -107,7 +108,7 @@ func (t *TypeResolver) resolveFunctionDecl(semCtx *SemanticAnalysisContext, func
 	if err != nil {
 		return err
 	}
-	if funcDecl.ReturnStmtsCount == 0 && funcDecl.ReturnType != token.VoidType {
+	if funcDecl.ReturnStmtsCount == 0 && funcDecl.ReturnType != types.VoidType {
 		return fmt.Errorf("Function %v has no return statements", funcDecl.Name)
 	}
 	return nil
@@ -129,9 +130,6 @@ func (t *TypeResolver) resolveReturnStatement(semCtx *SemanticAnalysisContext, r
 		return fmt.Errorf("Declaring return statement outside of a function body is not allowed")
 	}
 	currentFun := semCtx.CurrentFunction
-	if returnStmt.ReturnType == token.VoidType && !t.compatible(returnStmt.ReturnType, currentFun.ReturnType) {
-		return TypeError{Expected: currentFun.ReturnType, Got: returnStmt.ReturnType}
-	}
 	exprType, err := t.evaluateType(semCtx, returnStmt.Expression)
 	if err != nil {
 		return err
@@ -154,10 +152,10 @@ func (t *TypeResolver) resolveVarDeclaration(semCtx *SemanticAnalysisContext, va
 	if semCtx.VarEnv.Exists(varDecl.Identifier) {
 		return fmt.Errorf("Variable %v already exists", varDecl.Identifier)
 	}
-	if specifiedType != token.NotSpecified && !t.compatible(specifiedType, calculatedType) {
+	if specifiedType != types.NotSpecified && !t.compatible(specifiedType, calculatedType) {
 		return TypeError{Expected: specifiedType, Got: calculatedType}
 	}
-	if specifiedType == token.NotSpecified {
+	if specifiedType == types.NotSpecified {
 		varDecl.VarType = calculatedType
 	}
 	semCtx.VarEnv.New(varDecl.Identifier, varDecl.VarType)
@@ -240,8 +238,8 @@ func (t *TypeResolver) resolveCondition(semCtx *SemanticAnalysisContext, conditi
 	if err != nil {
 		return err
 	}
-	if !t.compatible(condType, token.BoolType) {
-		return TypeError{Expected: token.BoolType, Got: condType}
+	if !t.compatible(condType, types.BoolType) {
+		return TypeError{Expected: types.BoolType, Got: condType}
 	}
 	return nil
 }
@@ -267,51 +265,51 @@ func (t *TypeResolver) resolveForStmt(parent *SemanticAnalysisContext, stmt *For
 	return nil
 }
 
-func (t *TypeResolver) evaluateType(semCtx *SemanticAnalysisContext, expression Expression) (token.VarType, error) {
+func (t *TypeResolver) evaluateType(semCtx *SemanticAnalysisContext, expression Expression) (types.Type, error) {
 	switch typed := expression.(type) {
 	case *BinaryExpression:
 		t1, err := t.evaluateType(semCtx, typed.Left)
 		if err != nil {
-			return token.NotSpecified, err
+			return types.NotSpecified, err
 		}
 		t2, err := t.evaluateType(semCtx, typed.Right)
 		if err != nil {
-			return token.NotSpecified, err
+			return types.NotSpecified, err
 		}
 		if !t.compatible(t1, t2) || !t.compatibleOperation(t1, typed.Operator) {
-			return token.NotSpecified, TypeError{Expected: t1, Got: t2}
+			return types.NotSpecified, TypeError{Expected: t1, Got: t2}
 		}
 		return typed.ExprType, nil
 	case *UnaryExpression:
 		t1, err := t.evaluateType(semCtx, typed.Right)
 		if err != nil {
-			return token.NotSpecified, err
+			return types.NotSpecified, err
 		}
 		if !t.compatibleOperation(t1, typed.Operator) {
-			return token.NotSpecified, NotCompatibleOperationError{Operation: typed.Operator, Type: t1}
+			return types.NotSpecified, NotCompatibleOperationError{Operation: typed.Operator, Type: t1}
 		}
 		return typed.ExprType, nil
-	case *BooleanLiteral, *IntegerLiteral:
+	case *BooleanLiteral, *IntegerLiteral, *VoidLiteral:
 		return typed.Type(), nil
 	case *IdentifierLiteral:
 		identifierType, ok := semCtx.VarEnv.Get(typed.Value)
 		if !ok {
-			return token.NotSpecified, fmt.Errorf("Variable %v does not exist", typed.Value)
+			return types.NotSpecified, fmt.Errorf("Variable %v does not exist", typed.Value)
 		}
 		return identifierType, nil
 	case *FunctionCall:
 		return t.evaluateFunCall(semCtx, typed)
 	}
-	return token.NotSpecified, fmt.Errorf("Unexpected expression %v", expression)
+	return types.NotSpecified, fmt.Errorf("Unexpected expression %v", expression)
 }
 
-func (t *TypeResolver) evaluateFunCall(semCtx *SemanticAnalysisContext, funCall *FunctionCall) (token.VarType, error) {
+func (t *TypeResolver) evaluateFunCall(semCtx *SemanticAnalysisContext, funCall *FunctionCall) (types.Type, error) {
 	funDecl, ok := semCtx.FunEnv.Get(funCall.Name)
 	if !ok {
-		return token.NotSpecified, fmt.Errorf("Function %v does not exist", funCall.Name)
+		return types.NotSpecified, fmt.Errorf("Function %v does not exist", funCall.Name)
 	}
 	if len(funDecl.Arguments) != len(funCall.Arguments) {
-		return token.NotSpecified, fmt.Errorf("Expected %v arguments. Got: %v", len(funDecl.Arguments), len(funCall.Arguments))
+		return types.NotSpecified, fmt.Errorf("Expected %v arguments. Got: %v", len(funDecl.Arguments), len(funCall.Arguments))
 	}
 
 	for i := 0; i < len(funDecl.Arguments); i++ {
@@ -319,19 +317,19 @@ func (t *TypeResolver) evaluateFunCall(semCtx *SemanticAnalysisContext, funCall 
 		callArg := funCall.Arguments[i]
 		callType, err := t.evaluateType(semCtx, callArg)
 		if err != nil {
-			return token.NotSpecified, err
+			return types.NotSpecified, err
 		}
 		if !t.compatible(funArg.VarType, callType) {
-			return token.NotSpecified, TypeError{Expected: funArg.VarType, Got: callType}
+			return types.NotSpecified, TypeError{Expected: funArg.VarType, Got: callType}
 		}
 	}
 	return funDecl.ReturnType, nil
 }
 
-func (t *TypeResolver) compatible(t1, t2 token.VarType) bool {
+func (t *TypeResolver) compatible(t1, t2 types.Type) bool {
 	return t1 == t2
 }
 
-func (t *TypeResolver) compatibleOperation(t1 token.VarType, op token.TokenType) bool {
+func (t *TypeResolver) compatibleOperation(t1 types.Type, op token.TokenType) bool {
 	return true // TODO: implement operation compatibility
 }

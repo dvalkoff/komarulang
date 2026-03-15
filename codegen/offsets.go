@@ -1,8 +1,8 @@
 package codegen
 
 import (
+	"github.com/dvalkoff/komarulang/parser/types"
 	"github.com/dvalkoff/komarulang/parser"
-	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
 type Offsets struct {
@@ -43,11 +43,11 @@ func (o *Offsets) AlignStackSize() {
 	o.StackSize = (o.StackSize + 15) & ^15
 }
 
-func sizeOf(varType token.VarType) int {
+func sizeOf(varType types.Type) int {
 	switch varType {
-	case token.IntType:
+	case types.IntType:
 		return 8
-	case token.BoolType:
+	case types.BoolType:
 		return 8
 	}
 	return 0

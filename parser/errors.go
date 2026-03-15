@@ -2,7 +2,7 @@ package parser
 
 import (
 	"fmt"
-
+	"github.com/dvalkoff/komarulang/parser/types"
 	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
@@ -16,21 +16,21 @@ func (e ParserError) Error() string {
 }
 
 type TypeError struct {
-	Expected token.VarType
-	Got      token.VarType
+	Expected types.Type
+	Got      types.Type
 }
 
 func (e TypeError) Error() string {
-	return fmt.Sprintf("Expected %v  Got: %v", typeToString(e.Expected), typeToString(e.Got))
+	return fmt.Sprintf("Expected %v  Got: %v", e.Expected.TypeToString(), e.Got.TypeToString())
 }
 
 type NotCompatibleOperationError struct {
 	Operation token.TokenType
-	Type      token.VarType
+	Type      types.Type
 }
 
 func (e NotCompatibleOperationError) Error() string {
-	return fmt.Sprintf("Operation %v  does not support type %v", tokenToString(e.Operation), typeToString(e.Type))
+	return fmt.Sprintf("Operation %v  does not support type %v", tokenToString(e.Operation), e.Type.TypeToString())
 }
 
 func tokenToString(t token.TokenType) string {
@@ -117,14 +117,4 @@ func tokenToString(t token.TokenType) string {
 	return ""
 }
 
-func typeToString(t token.VarType) string {
-	switch t {
-	case token.IntType:
-		return "<int>"
-	case token.BoolType:
-		return "<bool>"
-	case token.IdentifierType:
-		return "<identifier>"
-	}
-	return ""
-}
+

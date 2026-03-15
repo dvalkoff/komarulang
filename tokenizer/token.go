@@ -60,16 +60,6 @@ const (
 
 type TokenType int
 
-const (
-	NotSpecified VarType = iota
-	BoolType
-	IntType
-	IdentifierType
-	VoidType
-)
-
-type VarType int
-
 func (t TokenType) Match(types ...TokenType) bool {
 	return slices.Contains(types, t)
 }
