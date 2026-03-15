@@ -1,27 +1,32 @@
 package codegen
 
 import (
-	token "github.com/dvalkoff/komarulang/tokenizer"
 	"github.com/dvalkoff/komarulang/parser"
+	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
 type Offsets struct {
 	StackSize int
 	OffsetMap map[string]int
-	Parent *Offsets
+	Parent    *Offsets
 }
 
 func NewOffsets(parent *Offsets) *Offsets {
 	return &Offsets{
 		StackSize: 0,
 		OffsetMap: map[string]int{},
-		Parent: parent,
+		Parent:    parent,
 	}
 }
 
 func (o *Offsets) Put(varDecl *parser.VarDeclaration) {
 	o.OffsetMap[varDecl.Identifier] = o.StackSize
 	o.StackSize += sizeOf(varDecl.VarType)
+}
+
+func (o *Offsets) PutFunArg(funArg *parser.FunctionArgument) {
+	o.OffsetMap[funArg.Identifier] = o.StackSize
+	o.StackSize += sizeOf(funArg.VarType)
 }
 
 func (o *Offsets) Get(identifier string) int {

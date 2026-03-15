@@ -1,6 +1,10 @@
 package codegen
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/dvalkoff/komarulang/strcase"
+)
 
 type Instruction interface {
 	String() string
@@ -17,7 +21,7 @@ type Operand interface {
 }
 
 const (
-	TrueImm = Imm(1)
+	TrueImm  = Imm(1)
 	FalseImm = Imm(0)
 )
 
@@ -59,7 +63,7 @@ func (m Movk) String() string {
 type BinaryOperation struct {
 	Dst Register
 	A   Register
-	B   Register	
+	B   Register
 }
 
 type Add struct {
@@ -161,7 +165,7 @@ const (
 
 	CSET_GT CSetValue = "GT"
 	CSET_GE CSetValue = "GE"
-	
+
 	CSET_LT CSetValue = "LT"
 	CSET_LE CSetValue = "LE"
 )
@@ -169,7 +173,7 @@ const (
 type CSetValue string
 
 type CSet struct {
-	A Register
+	A     Register
 	Value CSetValue
 }
 
@@ -194,7 +198,7 @@ func (a StackDeallocator) String() string {
 }
 
 type Str struct {
-	A Register
+	A      Register
 	Offset Imm
 }
 
@@ -203,7 +207,7 @@ func (s Str) String() string {
 }
 
 type Ldr struct {
-	A Register
+	A      Register
 	Offset Imm
 }
 
@@ -224,7 +228,7 @@ func (s AsmLabel) String() string {
 }
 
 type Cbz struct {
-	A Register
+	A     Register
 	Label AsmLabel
 }
 
@@ -240,8 +244,138 @@ func (b Bjump) String() string {
 	return fmt.Sprintf("    B %v", b.Label.Value())
 }
 
-type PrintSubroutine struct {}
+type CallPrintSubroutine struct{}
 
-func (psb PrintSubroutine) String() string {
+func (psb CallPrintSubroutine) String() string {
 	return "    BL _print_int"
+}
+
+type CallSubroutine struct{
+	Identifer SubroutineDecl
+}
+
+func (cs CallSubroutine) String() string {
+	return fmt.Sprintf("    BL %v", cs.Identifer.Name)
+}
+
+type SubroutineDecl struct {
+	Name string
+}
+
+func NewSubroutineDecl(name string) SubroutineDecl {
+	return SubroutineDecl{"_" + strcase.ToSnake(name)}
+}
+
+func (sd SubroutineDecl) String() string {
+	return fmt.Sprintf("%v:", sd.Name)
+}
+
+type AsmReturn struct{}
+
+func (ar AsmReturn) String() string {
+	return "    ret"
+}
+
+type Global struct {
+	Identifier SubroutineDecl
+}
+
+func (g Global) String() string {
+	return fmt.Sprintf(".global %v", g.Identifier.Name)
+}
+
+type Align struct {
+	Value int
+}
+
+func (a Align) String() string {
+	return fmt.Sprintf(".align %v", a.Value)
+}
+
+type Svc struct {
+	Value string
+}
+
+func (s Svc) String() string {
+	return fmt.Sprintf("    svc %v", s.Value)
+}
+
+type PrintAsmSubroutine struct{}
+
+func (a PrintAsmSubroutine) String() string {
+	return `
+// _print_int: prints integer in x0 to stdout
+// Buffer layout (48 bytes, sp+0 to sp+47):
+//   sp+0:  saved x30
+//   sp+1 to sp+46: digit buffer (fills backwards from sp+46)
+//   sp+47: newline character
+// Clobbers: x0-x6, x10, x16
+// Preserves: x30 (saved/restored)
+_print_int:
+
+    sub sp, sp, #48 // allocating 32 bytes for int64
+    mov x5, #47 // sp pointer to current char
+    str x30, [sp, #0]    // save x30
+
+    mov x4, #10       // newline ASCII
+    add x6, sp, x5
+    strb w4, [x6]
+    sub x5, x5, #1
+
+    // at start of _print_int
+    mov x10, #0
+    cmp x0, #0
+    B.GE skip_negative    // if positive, skip
+    neg x0, x0            // make positive
+    mov x10, #1  // store '-' character flag
+    skip_negative:
+
+	cmp x0, #0
+	B.NE main_algo    // if not zero, go to loop
+	// x0 IS zero — handle special case
+	mov x4, #48                // '0' ASCII
+	add x6, sp, x5
+	strb w4, [x6]              // store '0'
+	sub x5, x5, #1
+	B while_num_non_zero_end
+
+	main_algo:
+
+
+    while_num_non_zero:
+    cmp x0, #0
+    B.EQ while_num_non_zero_end // if zero, goto end of loop
+    mov x1, #10 // setting a divider into a register
+    sdiv x2, x0, x1 // 2-step modulo
+    msub x4, x2, x1, x0
+    add x4, x4, #48   // shifting for ASCII. '0' = 48 in ASCII
+    add x6, sp, x5     // x6 = sp + x5 (actual address)
+    strb w4, [x6]       // store at that address
+    sub x5, x5, #1 // decreasing a pointer
+    sdiv x0, x0, x1 // dividing by 10
+    B while_num_non_zero // returning to a loop starting point
+
+    while_num_non_zero_end:
+
+    cmp x10, #0
+    B.EQ skip_sign
+    mov x4, #45       // newline ASCII
+    add x6, sp, x5
+    strb w4, [x6]
+    sub x5, x5, #1
+
+    skip_sign:
+
+    mov x16, #4      // write
+    mov x0, #1       // stdout
+    add x1, sp, x5      // x1 = address of string
+    add x1, x1, #1      // x1 = address of string
+    mov x4, #47
+    sub x2, x4, x5 // calculating and setting len
+
+    svc #0x80
+    ldr x30, [sp, #0]   // restore x30
+    add sp, sp, #48 // deallocating stack
+    ret
+`
 }

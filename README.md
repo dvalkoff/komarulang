@@ -1,85 +1,111 @@
 # Language
 
 ```
-// comment line
-var a = 1 // variable declaration, integer
-var b = true // bool
+fun Fibonacci(n int) int { // functions support
+    var a = 0
+    var b = 1
 
-a = 2 // reassignment
-
-print(a) // stdout builtin "function". techically it's a keyword for now
-
-{ // code block. variables are local
-    var d = 3
-    // arithmetic operations
-    var c = d + a
-    c = c * a
-    c = c / a
-    c = -c
-    c = c % 2
-    // comparison
-    print(a > d)
-    print(a < d)
-    print(a >= d)
-    print(a <= d)
-    print(a != d)
-    print(a == d)
-}
-
-{
-    var e = true
-    var f = false
-    // logical operations
-    print(e && f)
-    print(e || f)
-    // bool negation
-    print(!e)
-}
-
-{
-    var e = 128
-    var f = 64
-    // bitwise operations
-    print(e & f)
-    print(e | f)
-    print(e ^ f)
-}
-
-// if else statements full support
-if a > 5 {
-    print(a)
-} else if b {
-    print(b)
-} else {
-    print(false)
-}
-
-{
-    // while loops
-    var e = 0
-    while e < 5 {
-        print(e)
-        e = e + 1
+    for var i = 0; i < n; i = i + 1 {
+        var temp = a + b
+        a = b
+        b = temp
     }
+    return a
 }
 
+fun FibonacciRecursive(n int) int {
+    if n == 0 {
+        return 0
+    }
+    if n == 1 {
+        return 1
+    }
+    var r1 = FibonacciRecursive(n - 1) // recursion works as well
+    var r2 = FibonacciRecursive(n - 2)
+    return r1 + r2
+}
 
-{
-    // for loops
-    for var i = 0; i < 10; i = i + 1 {
-        print(i)
+fun main () {
+    // comment line
+    var a = 1 // variable declaration, integer
+    var b = true // bool
+
+    a = 2 // reassignment
+
+    print(a) // stdout builtin "function". techically it's a keyword for now
+
+    { // code block. variables are local
+        var d = 3
+        // arithmetic operations
+        var c = d + a
+        c = c * a
+        c = c / a
+        c = -c
+        c = c % 2
+        // comparison
+        print(a > d)
+        print(a < d)
+        print(a >= d)
+        print(a <= d)
+        print(a != d)
+        print(a == d)
     }
 
-    var i = 0 // variable doesn't have to be declared inside for statement
-    for i = 1; i <= 10; i = i + 1 {
-        print(i)
+    {
+        var e = true
+        var f = false
+        // logical operations
+        print(e && f)
+        print(e || f)
+        // bool negation
+        print(!e)
     }
-}
 
-{
-    var x int = 1 // declaring a variable with a specific type
-    var y = 1 + x // type inference
-    // y = false - compile time type error
+    {
+        var e = 128
+        var f = 64
+        // bitwise operations
+        print(e & f)
+        print(e | f)
+        print(e ^ f)
+    }
+
+    // if else statements full support
+    if a > 5 {
+        print(a)
+    } else if b {
+        print(b)
+    } else {
+        print(false)
+    }
+
+    {
+        // while loops
+        var e = 0
+        while e < 5 {
+            print(e)
+            e = e + 1
+        }
+    }
+
+
+    {
+        // for loops
+        for var i = 0; i < 10; i = i + 1 {
+            print(i)
+        }
+
+        var i = 0 // variable doesn't have to be declared inside for statement
+        for i = 1; i <= 10; i = i + 1 {
+            print(i)
+        }
+    }
+
+    {
+        var x int = 1 // declaring a variable with a specific type
+        var y = 1 + x // type inference
+        // y = false - compile time type error
+    }
 }
 ```
 

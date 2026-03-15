@@ -6,10 +6,9 @@ import (
 	token "github.com/dvalkoff/komarulang/tokenizer"
 )
 
-
 type ParserError struct {
 	Expected token.TokenType
-	Got token.TokenType
+	Got      token.TokenType
 }
 
 func (e ParserError) Error() string {
@@ -18,7 +17,7 @@ func (e ParserError) Error() string {
 
 type TypeError struct {
 	Expected token.VarType
-	Got token.VarType
+	Got      token.VarType
 }
 
 func (e TypeError) Error() string {
@@ -27,7 +26,7 @@ func (e TypeError) Error() string {
 
 type NotCompatibleOperationError struct {
 	Operation token.TokenType
-	Type token.VarType
+	Type      token.VarType
 }
 
 func (e NotCompatibleOperationError) Error() string {
@@ -69,7 +68,7 @@ func tokenToString(t token.TokenType) string {
 	case token.GreaterEqual:
 		return ">="
 	case token.Less:
-		return "<"	
+		return "<"
 	case token.LessEqual:
 		return "<="
 	case token.Integer:
@@ -106,10 +105,17 @@ func tokenToString(t token.TokenType) string {
 		return "^"
 	case token.Type:
 		return "<type>"
+	case token.Break:
+		return "<break>"
+	case token.Comma:
+		return ","
+	case token.Return:
+		return "<return>"
+	case token.Fun:
+		return "<fun>"
 	}
 	return ""
 }
-
 
 func typeToString(t token.VarType) string {
 	switch t {

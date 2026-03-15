@@ -47,7 +47,7 @@ func (t *Tokenizer) addSemicolon(lineTokens []Token) []Token {
 	if len(lineTokens) == 0 {
 		return lineTokens
 	}
-	lastTokenOnLine := lineTokens[len(lineTokens) -1]
+	lastTokenOnLine := lineTokens[len(lineTokens)-1]
 	if lastTokenOnLine.TokenType.Match(Identifier, Print, Integer, Bool, RightBrace, RightParen, RightBrace, Break, Continue, Return) {
 		lineTokens = append(lineTokens, Token{TokenType: Semicolon, Value: nil})
 	}

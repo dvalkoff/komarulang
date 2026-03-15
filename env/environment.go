@@ -1,14 +1,13 @@
 package env
 
-
 type Environment[T any] struct {
-	data map[string]T
+	data   map[string]T
 	parent *Environment[T]
 }
 
 func NewEnvironment[T any](parent *Environment[T]) *Environment[T] {
 	return &Environment[T]{
-		data: map[string]T{},
+		data:   map[string]T{},
 		parent: parent,
 	}
 }

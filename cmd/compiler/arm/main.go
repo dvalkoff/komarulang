@@ -63,6 +63,10 @@ func link(objFile, outFile string) error {
 	return cmd.Run()
 }
 
+const (
+	entrypoint = "main"
+)
+
 func main() {
 	params := getCompilerParameters()
 	tokenizer := tokenizer.Tokenizer{File: params[inputFile]}
@@ -84,7 +88,7 @@ func main() {
 	if err := resolver.Resolve(stmts); err != nil {
 		panic(err)
 	}
-	codegen := codegen.NewCodeGenerator()
+	codegen := codegen.NewCodeGenerator(entrypoint)
 	if err := codegen.Compile(stmts); err != nil {
 		panic(err)
 	}

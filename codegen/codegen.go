@@ -21,117 +21,49 @@ func (p *Program) Emit(i ...Instruction) {
 func (p Program) String() string {
 	var b strings.Builder
 
-	b.WriteString(`.global _main
-.align 2
-
-`)
-
-	b.WriteString(`
-// _print_int: prints integer in x0 to stdout
-// Buffer layout (48 bytes, sp+0 to sp+47):
-//   sp+0:  saved x30
-//   sp+1 to sp+46: digit buffer (fills backwards from sp+46)
-//   sp+47: newline character
-// Clobbers: x0-x6, x10, x16
-// Preserves: x30 (saved/restored)
-_print_int:
-
-    sub sp, sp, #48 // allocating 32 bytes for int64
-    mov x5, #47 // sp pointer to current char
-    str x30, [sp, #0]    // save x30
-
-    mov x4, #10       // newline ASCII
-    add x6, sp, x5
-    strb w4, [x6]
-    sub x5, x5, #1
-
-    // at start of _print_int
-    mov x10, #0
-    cmp x0, #0
-    B.GE skip_negative    // if positive, skip
-    neg x0, x0            // make positive
-    mov x10, #1  // store '-' character flag
-    skip_negative:
-
-	cmp x0, #0
-	B.NE main_algo    // if not zero, go to loop
-	// x0 IS zero — handle special case
-	mov x4, #48                // '0' ASCII
-	add x6, sp, x5
-	strb w4, [x6]              // store '0'
-	sub x5, x5, #1
-	B while_num_non_zero_end
-
-	main_algo:
-
-
-    while_num_non_zero:
-    cmp x0, #0
-    B.EQ while_num_non_zero_end // if zero, goto end of loop
-    mov x1, #10 // setting a divider into a register
-    sdiv x2, x0, x1 // 2-step modulo
-    msub x4, x2, x1, x0
-    add x4, x4, #48   // shifting for ASCII. '0' = 48 in ASCII
-    add x6, sp, x5     // x6 = sp + x5 (actual address)
-    strb w4, [x6]       // store at that address
-    sub x5, x5, #1 // decreasing a pointer
-    sdiv x0, x0, x1 // dividing by 10
-    B while_num_non_zero // returning to a loop starting point
-
-    while_num_non_zero_end:
-
-    cmp x10, #0
-    B.EQ skip_sign
-    mov x4, #45       // newline ASCII
-    add x6, sp, x5
-    strb w4, [x6]
-    sub x5, x5, #1
-
-    skip_sign:
-
-    mov x16, #4      // write
-    mov x0, #1       // stdout
-    add x1, sp, x5      // x1 = address of string
-    add x1, x1, #1      // x1 = address of string
-    mov x4, #47
-    sub x2, x4, x5 // calculating and setting len
-
-    svc #0x80
-    ldr x30, [sp, #0]   // restore x30
-    add sp, sp, #48 // deallocating stack
-    ret
-`)
-
-	b.WriteString(`
-_main:
-`)
-
 	for _, inst := range p.Instructions {
 		b.WriteString(inst.String())
 		b.WriteByte('\n')
 	}
 
-	b.WriteString(`
-	mov x16, #1
-	svc #0x80
-`)
-
 	return b.String()
 }
 
 type CodeGenerator struct {
-	Prog *Program
+	Prog                 *Program
+	EntrypointIdentifier string
 }
 
-func NewCodeGenerator() *CodeGenerator {
+func NewCodeGenerator(entrypoint string) *CodeGenerator {
 	return &CodeGenerator{
-		Prog: &Program{},
+		Prog:                 &Program{},
+		EntrypointIdentifier: entrypoint,
 	}
 }
 
 func (c *CodeGenerator) Compile(stmts []parser.Statement) error {
-	block := &parser.Block{Stmts: stmts}
-	_, err := c.compileStmt(nil, block, 0)
+	c.Prog.Emit(
+		Global{
+			NewSubroutineDecl(c.EntrypointIdentifier),
+		},
+	)
+	c.Prog.Emit(Align{2})
+
+	c.Prog.Emit(PrintAsmSubroutine{})
+	var entrypoint *parser.FunctionDecl
+	for _, stmt := range stmts {
+		if decl, ok := stmt.(*parser.FunctionDecl); ok {
+			if decl.Name == c.EntrypointIdentifier {
+				entrypoint = decl
+			} else {
+				_, err := c.compileStmt(nil, decl, 0)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	_, err := c.compileStmt(nil, entrypoint, 0)
 	return err
 }
 
@@ -157,8 +89,107 @@ func (c *CodeGenerator) compileStmt(env *Offsets, stmt parser.Statement, reg Reg
 		return c.compileBreak(env, typed, reg)
 	case *parser.ContinueStatement:
 		return c.compileContinue(env, typed, reg)
+	case *parser.FunctionDecl:
+		return c.compileFunction(env, typed, reg)
+	case *parser.ReturnStatement:
+		return c.compileReturnStmt(env, typed, reg)
 	}
 	return 0, fmt.Errorf("Unexpected statement %v", stmt)
+}
+
+func (c *CodeGenerator) compileFunction(parent *Offsets, funcDecl *parser.FunctionDecl, reg Register) (Register, error) {
+	subroutineDecl := NewSubroutineDecl(funcDecl.Name)
+	c.Prog.Emit(subroutineDecl)
+
+	offsets := NewOffsets(parent)
+	offsets.StackSize += 8 // x30
+	for _, arg := range funcDecl.Arguments {
+		offsets.PutFunArg(arg)
+	}
+	block := funcDecl.Body.(*parser.Block)
+	for _, stmt := range block.Stmts {
+		if decl, ok := stmt.(*parser.VarDeclaration); ok {
+			offsets.Put(decl)
+		}
+	}
+	offsets.AlignStackSize()
+
+	c.Prog.Emit(StackAllocator{
+		Value: Imm(offsets.StackSize),
+	})
+	c.Prog.Emit(Str{
+		A:      30,
+		Offset: Imm(0),
+	})
+	argumentRegister := Register(0)
+	for _, arg := range funcDecl.Arguments {
+		err := c.compileFunArgument(offsets, arg, argumentRegister)
+		if err != nil {
+			return reg, err
+		}
+		argumentRegister += 1
+	}
+	reg = Register(0)
+	for _, stmt := range block.Stmts {
+		_, err := c.compileStmt(offsets, stmt, reg)
+		if err != nil {
+			return reg, err
+		}
+	}
+
+	epilogueLabel := AsmLabel{funcDecl.EpilogueLabel.String()}
+	c.Prog.Emit(epilogueLabel)
+	c.Prog.Emit(Ldr{
+		A:      30,
+		Offset: Imm(0),
+	})
+	c.Prog.Emit(StackDeallocator{
+		Value: Imm(offsets.StackSize),
+	})
+	if funcDecl.Name == c.EntrypointIdentifier {
+		return c.compileExit(offsets, reg)
+	}
+	c.Prog.Emit(AsmReturn{})
+	return reg, nil
+}
+
+func (c *CodeGenerator) compileFunArgument(env *Offsets, funArg *parser.FunctionArgument, reg Register) error {
+	c.Prog.Emit(Str{
+		A: reg,
+		Offset: Imm(env.Get(funArg.Identifier)),
+	})
+	return nil
+}
+
+func (c *CodeGenerator) compileExit(env *Offsets, reg Register) (Register, error) {
+	c.Prog.Emit(Mov{
+		Dst: 0,
+		Src: Imm(0),
+	})
+	c.Prog.Emit(Mov{
+		Dst: 16,
+		Src: Imm(1),
+	})
+	c.Prog.Emit(Svc{
+		Value: "#0x80",
+	})
+	return reg, nil
+}
+
+func (c *CodeGenerator) compileReturnStmt(env *Offsets, returnStmt *parser.ReturnStatement, reg Register) (Register, error) {
+	reg, err := c.compileExpr(env, returnStmt.Expression, reg)
+	if err != nil {
+		return reg, err
+	}
+	c.Prog.Emit(Mov{
+		0,
+		reg,
+	})
+	epilogueLabel := AsmLabel{returnStmt.EpilogueLabel.String()}
+	c.Prog.Emit(Bjump{
+		Label: epilogueLabel,
+	})
+	return reg, nil
 }
 
 func (c *CodeGenerator) compilePrint(env *Offsets, printStmt *parser.PrintStatement, reg Register) (Register, error) {
@@ -166,7 +197,7 @@ func (c *CodeGenerator) compilePrint(env *Offsets, printStmt *parser.PrintStatem
 	if err != nil {
 		return reg, err
 	}
-	c.Prog.Emit(PrintSubroutine{})
+	c.Prog.Emit(CallPrintSubroutine{})
 	return reg, nil
 }
 
@@ -174,14 +205,14 @@ func (c *CodeGenerator) compileBreak(env *Offsets, breakStmt *parser.BreakStatem
 	c.Prog.Emit(Bjump{
 		Label: AsmLabel{breakStmt.GotoLabel.String()},
 	})
-	return reg,  nil
+	return reg, nil
 }
 
 func (c *CodeGenerator) compileContinue(env *Offsets, continueStmt *parser.ContinueStatement, reg Register) (Register, error) {
 	c.Prog.Emit(Bjump{
 		Label: AsmLabel{continueStmt.GotoLabel.String()},
 	})
-	return reg,  nil
+	return reg, nil
 }
 
 func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStatement, reg Register) (Register, error) {
@@ -211,7 +242,7 @@ func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStat
 		return reg, err
 	}
 	c.Prog.Emit(Cbz{
-		A: reg,
+		A:     reg,
 		Label: forLoopEndLabel,
 	})
 	reg, err = c.compileStmt(env, forStatement.Block, reg)
@@ -224,7 +255,6 @@ func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStat
 		Label: forLoopLabel,
 	})
 	c.Prog.Emit(forLoopEndLabel)
-
 
 	if allocationRequired {
 		c.Prog.Emit(StackDeallocator{
@@ -243,7 +273,7 @@ func (c *CodeGenerator) compileWhile(env *Offsets, whileStatement *parser.WhileS
 		return reg, err
 	}
 	c.Prog.Emit(Cbz{
-		A: reg,
+		A:     reg,
 		Label: whileLoopEndLabel,
 	})
 	reg, err = c.compileStmt(env, whileStatement.Block, reg)
@@ -262,7 +292,7 @@ func (c *CodeGenerator) compileIf(env *Offsets, ifStatement *parser.IfStatement,
 	elseLabel := AsmLabel{parser.NewLabel(parser.ElseType).String()}
 	reg, err := c.compileExpr(env, ifStatement.Condition, reg)
 	c.Prog.Emit(Cbz{
-		A: reg,
+		A:     reg,
 		Label: elseLabel,
 	})
 	if err != nil {
@@ -322,7 +352,7 @@ func (c *CodeGenerator) compileVarDeclaration(offsets *Offsets, varDecl *parser.
 	}
 
 	c.Prog.Emit(Str{
-		A: reg,
+		A:      reg,
 		Offset: Imm(offsets.Get(varDecl.Identifier)),
 	})
 	return reg, nil
@@ -335,7 +365,7 @@ func (c *CodeGenerator) compileVarAssignment(offsets *Offsets, varAssignment *pa
 	}
 
 	c.Prog.Emit(Str{
-		A: reg,
+		A:      reg,
 		Offset: Imm(offsets.Get(varAssignment.Identifier)),
 	})
 	return reg, nil
@@ -343,6 +373,16 @@ func (c *CodeGenerator) compileVarAssignment(offsets *Offsets, varAssignment *pa
 
 func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, reg Register) (Register, error) {
 	switch e := expr.(type) {
+	case *parser.FunctionCall:
+		reg := Register(0)
+		for _, arg := range e.Arguments {
+			c.compileExpr(offsets, arg, reg)
+			reg += 1
+		}
+		c.Prog.Emit(CallSubroutine{
+			NewSubroutineDecl(e.Name),
+		})
+		return Register(0), nil // TODO: func1() && func2() - result is overwritten in registers? 
 	case *parser.IntegerLiteral:
 		instructions := c.loadInt(reg, e.Value)
 		c.Prog.Emit(instructions...)
@@ -356,7 +396,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 		return reg, nil
 	case *parser.IdentifierLiteral:
 		c.Prog.Emit(Ldr{
-			A: reg,
+			A:      reg,
 			Offset: Imm(offsets.Get(e.Value)),
 		})
 		return reg, nil
@@ -380,8 +420,8 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 			c.Prog.Emit(BitwiseXor{
 				BinaryOperation{
 					Dst: left,
-					A: left,
-					B: right,
+					A:   left,
+					B:   right,
 				},
 			})
 		}
@@ -391,7 +431,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 		if err != nil {
 			return 0, err
 		}
-		right, err := c.compileExpr(offsets,e.Right, reg+1)
+		right, err := c.compileExpr(offsets, e.Right, reg+1)
 		if err != nil {
 			return 0, err
 		}
@@ -432,38 +472,38 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 			c.Prog.Emit(Sdiv{
 				BinaryOperation{
 					Dst: right + 1,
-					A: left,
-					B: right,
+					A:   left,
+					B:   right,
 				},
 			})
 			c.Prog.Emit(MSub{
 				Dst: left,
-				A: right + 1,
-				B: right,
-				C: left,
+				A:   right + 1,
+				B:   right,
+				C:   left,
 			})
 		case token.Vbar, token.VbarVbar:
 			c.Prog.Emit(BitwiseOr{
 				BinaryOperation{
 					Dst: left,
-					A: left,
-					B: right,
+					A:   left,
+					B:   right,
 				},
 			})
 		case token.Ampersand, token.AmpersandAmpersand:
 			c.Prog.Emit(BitwiseAnd{
 				BinaryOperation{
 					Dst: left,
-					A: left,
-					B: right,
+					A:   left,
+					B:   right,
 				},
 			})
 		case token.Caret:
 			c.Prog.Emit(BitwiseXor{
 				BinaryOperation{
 					Dst: left,
-					A: left,
-					B: right,
+					A:   left,
+					B:   right,
 				},
 			})
 		case token.EqualEqual:
@@ -472,7 +512,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 				B: right,
 			})
 			c.Prog.Emit(CSet{
-				A: left,
+				A:     left,
 				Value: CSET_EQ,
 			})
 		case token.BangEqual:
@@ -481,7 +521,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 				B: right,
 			})
 			c.Prog.Emit(CSet{
-				A: left,
+				A:     left,
 				Value: CSET_NE,
 			})
 		case token.GreaterEqual:
@@ -490,7 +530,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 				B: right,
 			})
 			c.Prog.Emit(CSet{
-				A: left,
+				A:     left,
 				Value: CSET_GE,
 			})
 		case token.Greater:
@@ -499,7 +539,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 				B: right,
 			})
 			c.Prog.Emit(CSet{
-				A: left,
+				A:     left,
 				Value: CSET_GT,
 			})
 		case token.LessEqual:
@@ -508,7 +548,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 				B: right,
 			})
 			c.Prog.Emit(CSet{
-				A: left,
+				A:     left,
 				Value: CSET_LE,
 			})
 		case token.Less:
@@ -517,7 +557,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 				B: right,
 			})
 			c.Prog.Emit(CSet{
-				A: left,
+				A:     left,
 				Value: CSET_LT,
 			})
 		}

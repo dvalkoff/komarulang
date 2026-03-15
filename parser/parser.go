@@ -17,17 +17,19 @@ type Statement interface {
 }
 
 type FunctionDecl struct {
-	Name        string
-	Arguments   []FunctionArgument
-	ReturnTypes []token.VarType
-	Body        Statement
+	Name       string
+	Arguments  []*FunctionArgument
+	ReturnType token.VarType
+	Body       Statement
+	ReturnStmtsCount int
+	EpilogueLabel Label
 }
 
 func (d *FunctionDecl) Statement() {}
 
 type FunctionArgument struct {
-	VarType    token.VarType
-	Identifier string
+	VarType       token.VarType
+	Identifier    string
 }
 
 type FunctionCall struct {
@@ -36,28 +38,30 @@ type FunctionCall struct {
 }
 
 func (d *FunctionCall) Type() token.VarType {
-	return token.MultipleValues
+	return token.IdentifierType
 }
 
 func (c *FunctionCall) Statement() {}
 
 type ReturnStatement struct {
-	Expressions []Expression
+	ReturnType    token.VarType
+	Expression    Expression
+	EpilogueLabel Label
 }
 
 func (c *ReturnStatement) Statement() {}
 
 func (e *ReturnStatement) Type() token.VarType {
-	return token.MultipleValues
+	return e.ReturnType
 }
 
-type BreakStatement struct{
+type BreakStatement struct {
 	GotoLabel Label
 }
 
 func (c *BreakStatement) Statement() {}
 
-type ContinueStatement struct{
+type ContinueStatement struct {
 	GotoLabel Label
 }
 
@@ -75,6 +79,7 @@ const (
 	LoopLabel          LabelType = "loop_label"
 	LoopEnd            LabelType = "loop_end"
 	IncrementLabel     LabelType = "increment_for_loop"
+	FunctionEpilogue   LabelType = "fun_epilogue"
 )
 
 type LabelType string
@@ -100,13 +105,13 @@ func (l Label) String() string {
 }
 
 type ForStatement struct {
-	LabelStart Label
+	LabelStart     Label
 	LabelIncrement Label
-	LabelEnd   Label
-	VarDecl    Statement
-	Condition  Expression
-	Increment  Statement
-	Block      Statement
+	LabelEnd       Label
+	VarDecl        Statement
+	Condition      Expression
+	Increment      Statement
+	Block          Statement
 }
 
 func (s *ForStatement) Statement() {}
@@ -265,19 +270,14 @@ func (p *Parser) declaration() (Statement, error) {
 }
 
 func (p *Parser) returnStatement() (*ReturnStatement, error) {
-	expressions := make([]Expression, 0)
-
-	for !p.isEOF() && p.peek().TokenType != token.Semicolon {
-		expr, err := p.expression()
+	if p.peek().TokenType != token.Semicolon {
+		expression, err := p.expression()
 		if err != nil {
 			return nil, err
 		}
-		expressions = append(expressions, expr)
-		if err := p.consume(token.Comma); err != nil { // TODO: need to handle last param
-			return nil, ParserError{Expected: token.Comma, Got: p.peek().TokenType}
-		}
+		return &ReturnStatement{ReturnType: token.NotSpecified, Expression: expression}, nil
 	}
-	return &ReturnStatement{Expressions: expressions}, nil
+	return &ReturnStatement{ReturnType: token.VoidType, Expression: nil}, nil
 }
 
 func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
@@ -288,8 +288,8 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 	if err := p.consume(token.LeftParen); err != nil {
 		return nil, err
 	}
-	funParams := make([]FunctionArgument, 0)
-	for !p.isEOF() && p.peek().TokenType != token.RightParen {
+	funArguments := make([]*FunctionArgument, 0)
+	if !p.isEOF() && p.peek().TokenType != token.RightParen {
 		if !p.match(token.Identifier) {
 			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
 		}
@@ -298,43 +298,36 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
 		}
 		paramType := p.previous().Value.(token.VarType)
-		funParams = append(funParams, FunctionArgument{
+		funArguments = append(funArguments, &FunctionArgument{
 			VarType:    paramType,
 			Identifier: paramName,
 		})
-		if err := p.consume(token.Comma); err != nil { // TODO: need to handle last param
+	}
+	for !p.isEOF() && p.peek().TokenType != token.RightParen {
+		if err := p.consume(token.Comma); err != nil {
 			return nil, ParserError{Expected: token.Comma, Got: p.peek().TokenType}
 		}
+		if !p.match(token.Identifier) {
+			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+		}
+		paramName := p.previous().Value.(string)
+		if !p.match(token.Type) {
+			return nil, ParserError{Expected: token.Identifier, Got: p.peek().TokenType}
+		}
+		paramType := p.previous().Value.(token.VarType)
+		funArguments = append(funArguments, &FunctionArgument{
+			VarType:    paramType,
+			Identifier: paramName,
+		})
 	}
 	if p.isEOF() {
 		return nil, ParserError{Expected: token.RightParen, Got: token.EOF}
 	}
 	p.consume(token.RightParen)
 
-	returnTypes := make([]token.VarType, 0)
+	returnType := token.VoidType
 	if p.match(token.Type) {
-		singleReturnType := p.previous().Value.(token.VarType)
-		returnTypes = append(returnTypes, singleReturnType)
-	} else if p.match(token.LeftParen) {
-		for !p.isEOF() && p.peek().TokenType != token.RightParen {
-			if !p.match(token.Type) {
-				return nil, ParserError{Expected: token.Type, Got: p.peek().TokenType}
-			}
-			returnType := p.previous().Value.(token.VarType)
-			returnTypes = append(returnTypes, returnType)
-			if err := p.consume(token.Comma); err != nil { // TODO: need to handle last param
-				return nil, ParserError{Expected: token.Comma, Got: p.peek().TokenType}
-			}
-		}
-		if p.isEOF() {
-			return nil, ParserError{Expected: token.RightParen, Got: token.EOF}
-		}
-		p.consume(token.RightParen)
-	} else {
-		return nil, errors.Join(
-			ParserError{Expected: token.Type, Got: p.peek().TokenType},
-			ParserError{Expected: token.LeftParen, Got: p.peek().TokenType},
-		)
+		returnType = p.previous().Value.(token.VarType)
 	}
 
 	if !p.match(token.LeftBrace) {
@@ -345,10 +338,10 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 		return nil, err
 	}
 	return &FunctionDecl{
-		Name:        functionName,
-		Arguments:   funParams,
-		ReturnTypes: returnTypes,
-		Body:        funBlock,
+		Name:       functionName,
+		Arguments:  funArguments,
+		ReturnType: returnType,
+		Body:       funBlock,
 	}, nil
 }
 
@@ -714,15 +707,23 @@ func (p *Parser) primary() (Expression, error) {
 
 func (p *Parser) evaluateFunCall(funName string) (*FunctionCall, error) {
 	parameters := make([]Expression, 0)
-	for !p.isEOF() && p.peek().TokenType != token.RightParen {
+	if !p.isEOF() && p.peek().TokenType != token.RightParen {
 		param, err := p.expression()
 		if err != nil {
 			return nil, err
 		}
 		parameters = append(parameters, param)
-		if err := p.consume(token.Comma); err != nil { // TODO: last value
+	}
+
+	for !p.isEOF() && p.peek().TokenType != token.RightParen {
+		if err := p.consume(token.Comma); err != nil {
 			return nil, err
 		}
+		param, err := p.expression()
+		if err != nil {
+			return nil, err
+		}
+		parameters = append(parameters, param)
 	}
 	if p.isEOF() {
 		return nil, ParserError{Expected: token.RightParen, Got: token.EOF}

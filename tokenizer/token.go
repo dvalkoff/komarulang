@@ -61,11 +61,11 @@ const (
 type TokenType int
 
 const (
-	NotSpecified VarType = VarType(-1)
-	BoolType VarType = iota
+	NotSpecified VarType = iota
+	BoolType
 	IntType
 	IdentifierType
-	MultipleValues
+	VoidType
 )
 
 type VarType int

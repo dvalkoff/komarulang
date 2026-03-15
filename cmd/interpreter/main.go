@@ -159,7 +159,7 @@ func evaluateBinaryOperation(leftOperand, rightOperand any, operator tokenizer.T
 	case tokenizer.Caret:
 		left, right := leftOperand.(int), rightOperand.(int)
 		return left ^ right
-	
+
 	case tokenizer.AmpersandAmpersand:
 		left, right := leftOperand.(bool), rightOperand.(bool)
 		return left && right
@@ -191,7 +191,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	env := env.NewEnvironment[any](nil)
 	for _, decl := range prog {
 		interpretStmt(env, decl)
