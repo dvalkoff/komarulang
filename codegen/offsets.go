@@ -63,6 +63,10 @@ type RegisterAllocator struct {
 	MaxReg Register
 }
 
+func NewRegisterAllocatorDefault() *RegisterAllocator {
+	return NewRegisterAllocator(8)
+}
+
 func NewRegisterAllocator(maxReg Register) *RegisterAllocator {
 	return &RegisterAllocator{CurrentReg: Register(0), MaxReg: maxReg}
 }

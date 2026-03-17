@@ -8,15 +8,6 @@ fun FibonacciRecursive(n int) int {
      return FibonacciRecursive(n - 1) + FibonacciRecursive(n - 2)
  }
 
-fun aboba(n int) int {
-    return 5 * n
-}
-
-fun aboba2(n int, b2 int) int {
-    return n * b2
-}
 
 fun main () {
-    var fib = FibonacciRecursive(10)
-    print(fib)
 }
