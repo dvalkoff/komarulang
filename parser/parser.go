@@ -34,12 +34,13 @@ type FunctionArgument struct {
 }
 
 type FunctionCall struct {
+	ReturnType types.Type
 	Name      string
 	Arguments []Expression
 }
 
 func (d *FunctionCall) Type() types.Type {
-	return types.NotSpecified
+	return d.ReturnType
 }
 
 func (c *FunctionCall) Statement() {}
@@ -184,11 +185,12 @@ func (e *BooleanLiteral) Type() types.Type {
 }
 
 type IdentifierLiteral struct {
+	VarType types.Type
 	Value string
 }
 
 func (e *IdentifierLiteral) Type() types.Type {
-	return types.NotSpecified
+	return e.VarType
 }
 
 type VoidLiteral struct {

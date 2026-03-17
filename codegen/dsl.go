@@ -12,6 +12,20 @@ type Instruction interface {
 
 type Register int
 
+type ValueHolder struct {
+	Reg Register
+	Spilled *SpilledValue
+}
+
+func (vh ValueHolder) IsRegister() bool {
+	return vh.Spilled == nil
+}
+
+type SpilledValue struct {
+	NewOffsets *Offsets
+	ValueOffset int
+}
+
 func (r Register) String() string {
 	return fmt.Sprintf("x%d", int(r))
 }
@@ -255,7 +269,7 @@ type CallSubroutine struct{
 }
 
 func (cs CallSubroutine) String() string {
-	return fmt.Sprintf("    BL %v", cs.Identifer.Name)
+	return fmt.Sprintf("    BL %v", cs.Identifer.Value())
 }
 
 type SubroutineDecl struct {
@@ -267,7 +281,11 @@ func NewSubroutineDecl(name string) SubroutineDecl {
 }
 
 func (sd SubroutineDecl) String() string {
-	return fmt.Sprintf("%v:", sd.Name)
+	return fmt.Sprintf("%v:", sd.Value())
+}
+
+func (sd SubroutineDecl) Value() string {
+	return sd.Name
 }
 
 type AsmReturn struct{}
@@ -281,7 +299,7 @@ type Global struct {
 }
 
 func (g Global) String() string {
-	return fmt.Sprintf(".global %v", g.Identifier.Name)
+	return fmt.Sprintf(".global %v", g.Identifier.Value())
 }
 
 type Align struct {

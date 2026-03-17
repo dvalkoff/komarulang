@@ -296,6 +296,7 @@ func (t *TypeResolver) evaluateType(semCtx *SemanticAnalysisContext, expression 
 		if !ok {
 			return types.NotSpecified, fmt.Errorf("Variable %v does not exist", typed.Value)
 		}
+		typed.VarType = identifierType
 		return identifierType, nil
 	case *FunctionCall:
 		return t.evaluateFunCall(semCtx, typed)
@@ -323,6 +324,7 @@ func (t *TypeResolver) evaluateFunCall(semCtx *SemanticAnalysisContext, funCall 
 			return types.NotSpecified, TypeError{Expected: funArg.VarType, Got: callType}
 		}
 	}
+	funCall.ReturnType = funDecl.ReturnType
 	return funDecl.ReturnType, nil
 }
 

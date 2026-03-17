@@ -70,7 +70,7 @@ func (c *CodeGenerator) Compile(stmts []parser.Statement) error {
 func (c *CodeGenerator) compileStmt(env *Offsets, stmt parser.Statement) error {
 	switch typed := stmt.(type) {
 	case *parser.ExprStatement:
-		_, err := c.compileExpr(env, typed.Expr, 0)
+		_, err := c.compileExpr(env, typed.Expr, NewRegisterAllocator(7))
 		return err
 	case *parser.Block:
 		return c.compileBlock(env, typed)
@@ -103,7 +103,7 @@ func (c *CodeGenerator) compileFunction(parent *Offsets, funcDecl *parser.Functi
 	c.Prog.Emit(subroutineDecl)
 
 	offsets := NewOffsets(parent)
-	offsets.StackSize += 8 // x30
+	offsets.StackSize += BytesInRegister // x30
 	for _, arg := range funcDecl.Arguments {
 		offsets.PutFunArg(arg)
 	}
@@ -177,10 +177,11 @@ func (c *CodeGenerator) compileExit(env *Offsets) error {
 }
 
 func (c *CodeGenerator) compileReturnStmt(env *Offsets, returnStmt *parser.ReturnStatement) error {
-	reg, err := c.compileExpr(env, returnStmt.Expression, Register(0))
+	vh, err := c.compileExpr(env, returnStmt.Expression, NewRegisterAllocator(7))
 	if err != nil {
 		return err
 	}
+	reg := c.LoadIntoRegister(vh, 0)
 	if reg != 0 {
 		c.Prog.Emit(Mov{
 			Register(0),
@@ -196,7 +197,8 @@ func (c *CodeGenerator) compileReturnStmt(env *Offsets, returnStmt *parser.Retur
 }
 
 func (c *CodeGenerator) compilePrint(env *Offsets, printStmt *parser.PrintStatement) error {
-	reg, err := c.compileExpr(env, printStmt.Expr, 0)
+	vh, err := c.compileExpr(env, printStmt.Expr, NewRegisterAllocator(7))
+	reg := c.LoadIntoRegister(vh, 0)
 	if reg != 0 {
 		c.Prog.Emit(Mov{
 			Register(0),
@@ -246,10 +248,11 @@ func (c *CodeGenerator) compileFor(parent *Offsets, forStatement *parser.ForStat
 	forLoopEndLabel := AsmLabel{forStatement.LabelEnd.String()}
 	incrementLabel := AsmLabel{forStatement.LabelIncrement.String()}
 	c.Prog.Emit(forLoopLabel)
-	conditionReg, err := c.compileExpr(env, forStatement.Condition, 0)
+	conditionVh, err := c.compileExpr(env, forStatement.Condition, NewRegisterAllocator(7))
 	if err != nil {
 		return err
 	}
+	conditionReg := c.LoadIntoRegister(conditionVh, 0)
 	c.Prog.Emit(Cbz{
 		A:     conditionReg,
 		Label: forLoopEndLabel,
@@ -277,10 +280,11 @@ func (c *CodeGenerator) compileWhile(env *Offsets, whileStatement *parser.WhileS
 	whileLoopLabel := AsmLabel{whileStatement.LabelStart.String()}
 	whileLoopEndLabel := AsmLabel{whileStatement.LabelEnd.String()}
 	c.Prog.Emit(whileLoopLabel)
-	conditionReg, err := c.compileExpr(env, whileStatement.Condition, 0)
+	conditionVh, err := c.compileExpr(env, whileStatement.Condition, NewRegisterAllocator(7))
 	if err != nil {
 		return err
 	}
+	conditionReg := c.LoadIntoRegister(conditionVh, 0)
 	c.Prog.Emit(Cbz{
 		A:     conditionReg,
 		Label: whileLoopEndLabel,
@@ -299,14 +303,15 @@ func (c *CodeGenerator) compileWhile(env *Offsets, whileStatement *parser.WhileS
 func (c *CodeGenerator) compileIf(env *Offsets, ifStatement *parser.IfStatement) error {
 	endIfLabel := AsmLabel{parser.NewLabel(parser.EndIfType).String()}
 	elseLabel := AsmLabel{parser.NewLabel(parser.ElseType).String()}
-	conditionReg, err := c.compileExpr(env, ifStatement.Condition, 0)
+	conditionVh, err := c.compileExpr(env, ifStatement.Condition, NewRegisterAllocator(7))
+	if err != nil {
+		return err
+	}
+	conditionReg := c.LoadIntoRegister(conditionVh, 0)
 	c.Prog.Emit(Cbz{
 		A:     conditionReg,
 		Label: elseLabel,
 	})
-	if err != nil {
-		return err
-	}
 	err = c.compileStmt(env, ifStatement.Block)
 	if err != nil {
 		return err
@@ -357,11 +362,11 @@ func (c *CodeGenerator) compileBlock(parent *Offsets, block *parser.Block) error
 }
 
 func (c *CodeGenerator) compileVarDeclaration(offsets *Offsets, varDecl *parser.VarDeclaration) error {
-	reg, err := c.compileExpr(offsets, varDecl.Expr, 0)
+	vh, err := c.compileExpr(offsets, varDecl.Expr, NewRegisterAllocator(7))
 	if err != nil {
 		return err
 	}
-
+	reg := c.LoadIntoRegister(vh, 0)
 	c.Prog.Emit(Str{
 		A:      reg,
 		Offset: Imm(offsets.Get(varDecl.Identifier)),
@@ -370,11 +375,11 @@ func (c *CodeGenerator) compileVarDeclaration(offsets *Offsets, varDecl *parser.
 }
 
 func (c *CodeGenerator) compileVarAssignment(offsets *Offsets, varAssignment *parser.VarAssignment) error {
-	reg, err := c.compileExpr(offsets, varAssignment.Expr, 0)
+	vh, err := c.compileExpr(offsets, varAssignment.Expr, NewRegisterAllocator(7))
 	if err != nil {
 		return err
 	}
-
+	reg := c.LoadIntoRegister(vh, 0)
 	c.Prog.Emit(Str{
 		A:      reg,
 		Offset: Imm(offsets.Get(varAssignment.Identifier)),
@@ -382,42 +387,47 @@ func (c *CodeGenerator) compileVarAssignment(offsets *Offsets, varAssignment *pa
 	return nil
 }
 
-func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, reg Register) (Register, error) {
+type DebugInstruction struct {
+	Value string
+}
+
+func (di DebugInstruction) String() string {
+	return di.Value
+}
+
+func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, regAllocator *RegisterAllocator) (*ValueHolder, error) {
+	if int(regAllocator.MaxReg + 1) * BytesInRegister < sizeOf(expr.Type()) {
+		return nil, fmt.Errorf("Can not compile expression. It won't fit into registers")
+	}
+	dst, succeeded := regAllocator.Alloc(expr.Type())
+	if !succeeded {
+		return c.compileWithSpilling(offsets, expr, regAllocator)
+	}
+
 	switch e := expr.(type) {
 	case *parser.FunctionCall:
-		reg := Register(0)
-		for _, arg := range e.Arguments {
-			c.compileExpr(offsets, arg, reg)
-			reg += 1
-		}
-		c.Prog.Emit(CallSubroutine{
-			NewSubroutineDecl(e.Name),
-		})
-		return Register(0), nil // TODO: func1() && func2() - result is overwritten in registers? 
+		return c.compileWithSpilling(offsets, expr, regAllocator)
 	case *parser.IntegerLiteral:
-		instructions := c.loadInt(reg, e.Value)
+		instructions := c.loadInt(dst, e.Value)
 		c.Prog.Emit(instructions...)
-		return reg, nil
 	case *parser.BooleanLiteral:
 		if e.Value {
-			c.Prog.Emit(Mov{reg, TrueImm})
+			c.Prog.Emit(Mov{dst, TrueImm})
 		} else {
-			c.Prog.Emit(Mov{reg, FalseImm})
+			c.Prog.Emit(Mov{dst, FalseImm})
 		}
-		return reg, nil
 	case *parser.VoidLiteral:
-		return reg, nil
 	case *parser.IdentifierLiteral:
 		c.Prog.Emit(Ldr{
-			A:      reg,
+			A:      dst,
 			Offset: Imm(offsets.Get(e.Value)),
 		})
-		return reg, nil
 	case *parser.UnaryExpression:
-		left := reg
-		right, err := c.compileExpr(offsets, e.Right, reg+1)
+		left := dst
+		rightVh, err := c.compileExpr(offsets, e.Right, regAllocator)
+		right := c.LoadIntoRegister(rightVh, regAllocator.CurrentReg)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 		switch e.Operator {
 		case token.Minus:
@@ -432,27 +442,32 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 			})
 			c.Prog.Emit(BitwiseXor{
 				BinaryOperation{
-					Dst: left,
+					Dst: dst,
 					A:   left,
 					B:   right,
 				},
 			})
 		}
-		return reg, nil
+		regAllocator.Free(e.Right.Type())
 	case *parser.BinaryExpression:
-		left, err := c.compileExpr(offsets, e.Left, reg)
+		leftVh, err := c.compileExpr(offsets, e.Left, regAllocator)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
-		right, err := c.compileExpr(offsets, e.Right, reg+1)
+		rightVh, err := c.compileExpr(offsets, e.Right, regAllocator)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
+		right := c.LoadIntoRegister(rightVh, regAllocator.CurrentReg)
+		regAllocator.Free(e.Right.Type())
+		left := c.LoadIntoRegister(leftVh, regAllocator.CurrentReg)
+		regAllocator.Free(e.Left.Type())
+		
 		switch e.Operator {
 		case token.Plus:
 			c.Prog.Emit(Add{
 				BinaryOperation{
-					Dst: left,
+					Dst: dst,
 					A:   left,
 					B:   right,
 				},
@@ -460,7 +475,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 		case token.Minus:
 			c.Prog.Emit(Sub{
 				BinaryOperation{
-					Dst: left,
+					Dst: dst,
 					A:   left,
 					B:   right,
 				},
@@ -468,7 +483,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 		case token.Star:
 			c.Prog.Emit(Mul{
 				BinaryOperation{
-					Dst: left,
+					Dst: dst,
 					A:   left,
 					B:   right,
 				},
@@ -476,21 +491,21 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 		case token.Slash:
 			c.Prog.Emit(Sdiv{
 				BinaryOperation{
-					Dst: left,
+					Dst: dst,
 					A:   left,
 					B:   right,
 				},
 			})
-		case token.Percent:
+		case token.Percent: // TODO: operation uses right+1 - potential registers overflow
 			c.Prog.Emit(Sdiv{
 				BinaryOperation{
-					Dst: right + 1,
+					Dst: right + 1, 
 					A:   left,
 					B:   right,
 				},
 			})
 			c.Prog.Emit(MSub{
-				Dst: left,
+				Dst: dst,
 				A:   right + 1,
 				B:   right,
 				C:   left,
@@ -498,7 +513,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 		case token.Vbar, token.VbarVbar:
 			c.Prog.Emit(BitwiseOr{
 				BinaryOperation{
-					Dst: left,
+					Dst: dst,
 					A:   left,
 					B:   right,
 				},
@@ -506,7 +521,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 		case token.Ampersand, token.AmpersandAmpersand:
 			c.Prog.Emit(BitwiseAnd{
 				BinaryOperation{
-					Dst: left,
+					Dst: dst,
 					A:   left,
 					B:   right,
 				},
@@ -514,7 +529,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 		case token.Caret:
 			c.Prog.Emit(BitwiseXor{
 				BinaryOperation{
-					Dst: left,
+					Dst: dst,
 					A:   left,
 					B:   right,
 				},
@@ -525,7 +540,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 				B: right,
 			})
 			c.Prog.Emit(CSet{
-				A:     left,
+				A:     dst,
 				Value: CSET_EQ,
 			})
 		case token.BangEqual:
@@ -534,7 +549,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 				B: right,
 			})
 			c.Prog.Emit(CSet{
-				A:     left,
+				A:     dst,
 				Value: CSET_NE,
 			})
 		case token.GreaterEqual:
@@ -543,7 +558,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 				B: right,
 			})
 			c.Prog.Emit(CSet{
-				A:     left,
+				A:     dst,
 				Value: CSET_GE,
 			})
 		case token.Greater:
@@ -561,7 +576,7 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 				B: right,
 			})
 			c.Prog.Emit(CSet{
-				A:     left,
+				A:     dst,
 				Value: CSET_LE,
 			})
 		case token.Less:
@@ -570,14 +585,15 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 				B: right,
 			})
 			c.Prog.Emit(CSet{
-				A:     left,
+				A:     dst,
 				Value: CSET_LT,
 			})
 		}
-		return reg, nil
+	default:
+		return nil, fmt.Errorf("Unexpected expression %v, %t", expr, expr)
 	}
 
-	return 0, fmt.Errorf("Unexpected expression %v, %t", expr, expr)
+	return &ValueHolder{Reg: dst}, nil
 }
 
 func (c *CodeGenerator) loadInt(reg Register, value int) []Instruction {
@@ -614,4 +630,101 @@ func (c *CodeGenerator) loadInt(reg Register, value int) []Instruction {
 		)
 	}
 	return instructions
+}
+
+func (c *CodeGenerator) compileFunctionCall(offsets *Offsets, expr *parser.FunctionCall, regAllocator *RegisterAllocator) (*ValueHolder, error) {
+	if regAllocator.CurrentReg != 0 {
+		return nil, fmt.Errorf("Function call cannot be compiled because of registers overwrite")
+	}
+	for _, arg := range expr.Arguments {
+		_, err := c.compileExpr(offsets, arg, regAllocator)
+		if err != nil {
+			return nil, err
+		}
+	}
+	c.Prog.Emit(CallSubroutine{
+		NewSubroutineDecl(expr.Name),
+	})
+	return &ValueHolder{Reg: 0}, nil
+}
+
+func (c *CodeGenerator) compileWithSpilling(parent *Offsets, expr parser.Expression, regAllocator *RegisterAllocator) (*ValueHolder, error) {
+	returnOffsets := NewOffsets(parent)
+	returnOffsets.StackSize += sizeOf(expr.Type()) // reserving a space for expression spilled value
+	returnOffsets.AlignStackSize()
+	if returnOffsets.StackSize > 0 {
+		c.Prog.Emit(StackAllocator{
+			Value: Imm(returnOffsets.StackSize),
+		})
+	}
+
+
+	tempOffsets := NewOffsets(returnOffsets)
+	tempOffsets.StackSize += int(regAllocator.CurrentReg) * BytesInRegister // adding a space for temporarily spilled values
+	tempOffsets.AlignStackSize()
+	if tempOffsets.StackSize > 0 {
+		c.Prog.Emit(StackAllocator{
+			Value: Imm(tempOffsets.StackSize),
+		})
+	}
+
+	for reg := range regAllocator.CurrentReg { // temporarilty loading registers into stack
+		c.Prog.Emit(Str{
+			A: reg,
+			Offset: Imm(int(reg * BytesInRegister)),
+		})
+	}
+	
+	var returnValueHolder *ValueHolder
+	var err error
+	switch typedExpr := expr.(type) {
+	case *parser.FunctionCall:
+		returnValueHolder, err = c.compileFunctionCall(tempOffsets, typedExpr, NewRegisterAllocator(regAllocator.MaxReg))
+	default:
+		returnValueHolder, err = c.compileExpr(tempOffsets, typedExpr, NewRegisterAllocator(regAllocator.MaxReg))
+	}
+	if err != nil {
+		return nil, err
+	}
+	returnValueRegister := c.LoadIntoRegister(returnValueHolder, 0)
+	c.Prog.Emit(Str{
+		A: Register(returnValueRegister),
+		Offset: Imm(tempOffsets.StackSize),
+	})
+	for reg := range regAllocator.CurrentReg { // loading temporarliy spilled values back to registers
+		c.Prog.Emit(Ldr{
+			A: reg,
+			Offset: Imm(int(reg * BytesInRegister)),
+		})
+	}
+	if tempOffsets.StackSize > 0 {
+		c.Prog.Emit(StackDeallocator{
+			Value: Imm(tempOffsets.StackSize), // deallocating stack, leaving only expression result
+		})
+	}
+
+	valueHolder := &ValueHolder{
+		Spilled: &SpilledValue{
+			NewOffsets: returnOffsets,
+			ValueOffset: 0,
+		},
+	}
+	return valueHolder, nil
+}
+
+func (c *CodeGenerator) LoadIntoRegister(valueHolder *ValueHolder, dst Register) Register {
+	var reg Register
+	if valueHolder.IsRegister() {
+		reg = valueHolder.Reg
+	} else {
+		reg = dst
+		c.Prog.Emit(Ldr{
+			A: dst,
+			Offset: Imm(valueHolder.Spilled.ValueOffset),
+		})
+		c.Prog.Emit(StackDeallocator{
+			Value: Imm(valueHolder.Spilled.NewOffsets.StackSize),
+		})
+	}
+	return reg
 }

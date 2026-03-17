@@ -5,6 +5,10 @@ import (
 	"github.com/dvalkoff/komarulang/parser"
 )
 
+const (
+	BytesInRegister = 8
+)
+
 type Offsets struct {
 	StackSize int
 	OffsetMap map[string]int
@@ -51,4 +55,31 @@ func sizeOf(varType types.Type) int {
 		return 8
 	}
 	return 0
+}
+
+
+type RegisterAllocator struct {
+	CurrentReg Register
+	MaxReg Register
+}
+
+func NewRegisterAllocator(maxReg Register) *RegisterAllocator {
+	return &RegisterAllocator{CurrentReg: Register(0), MaxReg: maxReg}
+}
+
+func (ra *RegisterAllocator) Alloc(varType types.Type) (Register, bool) {
+	size := Register(sizeOf(varType) / BytesInRegister)
+	if ra.CurrentReg + size > ra.MaxReg {
+		return ra.CurrentReg, false
+	}
+	returnValue := ra.CurrentReg
+	ra.CurrentReg += size
+	return returnValue, true
+}
+
+func (ra *RegisterAllocator) Free(varType types.Type) {
+	size := Register(sizeOf(varType) / BytesInRegister)
+	if ra.CurrentReg > 0 {
+		ra.CurrentReg = max(0, ra.CurrentReg - size)
+	}
 }

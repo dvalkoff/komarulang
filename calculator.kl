@@ -1,8 +1,22 @@
+fun FibonacciRecursive(n int) int {
+    if n == 0 {
+         return 0
+     }
+     if n == 1 {
+         return 1
+     }
+     return FibonacciRecursive(n - 1) + FibonacciRecursive(n - 2)
+ }
 
-fun printer(n int) {
-    print(n)
+fun aboba(n int) int {
+    return 5 * n
+}
+
+fun aboba2(n int, b2 int) int {
+    return n * b2
 }
 
 fun main () {
-    asd)   
+    var fib = FibonacciRecursive(10)
+    print(fib)
 }
