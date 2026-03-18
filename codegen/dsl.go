@@ -12,15 +12,6 @@ type Instruction interface {
 
 type Register int
 
-type ValueHolder struct {
-	Reg Register
-	Spilled *SpilledValue
-}
-
-func (vh ValueHolder) IsRegister() bool {
-	return vh.Spilled == nil
-}
-
 type SpilledValue struct {
 	NewOffsets *Offsets
 	ValueOffset int
@@ -200,7 +191,10 @@ type StackAllocator struct {
 }
 
 func (a StackAllocator) String() string {
-	return fmt.Sprintf("    sub sp, sp, %v", a.Value)
+	if a.Value > 0 {
+		return fmt.Sprintf("    sub sp, sp, %v", a.Value)
+	}
+	return ""
 }
 
 type StackDeallocator struct {
@@ -208,7 +202,10 @@ type StackDeallocator struct {
 }
 
 func (a StackDeallocator) String() string {
-	return fmt.Sprintf("    add sp, sp, %v", a.Value)
+	if a.Value > 0 {
+		return fmt.Sprintf("    add sp, sp, %v", a.Value)
+	}
+	return ""
 }
 
 type Str struct {

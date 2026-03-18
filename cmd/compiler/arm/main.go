@@ -84,7 +84,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	resolver := parser.TypeResolver{}
+	resolver := parser.NewTypeResolver()
 	if err := resolver.Resolve(stmts); err != nil {
 		panic(err)
 	}

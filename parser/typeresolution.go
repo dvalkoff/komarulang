@@ -37,7 +37,15 @@ func newSemanticAnalysisContext(varEnv *env.Environment[types.Type], funEnv *env
 	}
 }
 
-type TypeResolver struct{}
+type TypeResolver struct{
+	flattener *Flattener
+}
+
+func NewTypeResolver() *TypeResolver {
+	return &TypeResolver{
+		flattener: NewFlattener(),
+	}
+}
 
 func (t *TypeResolver) Resolve(stmts []Statement) error {
 	semCtx := FromSemanticAnalysisContext(nil)
@@ -68,9 +76,11 @@ func (t *TypeResolver) resolveStmt(semCtx *SemanticAnalysisContext, stmt Stateme
 		return t.resolveVarAssignment(semCtx, typed)
 	case *ExprStatement:
 		_, err := t.evaluateType(semCtx, typed.Expr)
+		typed.Expr = t.flattener.Flatten(typed.Expr)
 		return err
 	case *PrintStatement:
 		_, err := t.evaluateType(semCtx, typed.Expr)
+		typed.Expr = t.flattener.Flatten(typed.Expr)
 		return err
 	case *IfStatement:
 		return t.resolveIfStmt(semCtx, typed)
@@ -131,6 +141,7 @@ func (t *TypeResolver) resolveReturnStatement(semCtx *SemanticAnalysisContext, r
 	}
 	currentFun := semCtx.CurrentFunction
 	exprType, err := t.evaluateType(semCtx, returnStmt.Expression)
+	returnStmt.Expression = t.flattener.Flatten(returnStmt.Expression)
 	if err != nil {
 		return err
 	}
@@ -146,6 +157,7 @@ func (t *TypeResolver) resolveReturnStatement(semCtx *SemanticAnalysisContext, r
 func (t *TypeResolver) resolveVarDeclaration(semCtx *SemanticAnalysisContext, varDecl *VarDeclaration) error {
 	specifiedType := varDecl.VarType
 	calculatedType, err := t.evaluateType(semCtx, varDecl.Expr)
+	varDecl.Expr = t.flattener.Flatten(varDecl.Expr)
 	if err != nil {
 		return err
 	}
@@ -168,6 +180,7 @@ func (t *TypeResolver) resolveVarAssignment(semCtx *SemanticAnalysisContext, ass
 		return fmt.Errorf("Variable %v does not exist", assignment.Identifier)
 	}
 	calculatedType, err := t.evaluateType(semCtx, assignment.Expr)
+	assignment.Expr = t.flattener.Flatten(assignment.Expr)
 	if err != nil {
 		return err
 	}
@@ -181,6 +194,7 @@ func (t *TypeResolver) resolveIfStmt(semCtx *SemanticAnalysisContext, stmt *IfSt
 	if err := t.resolveCondition(semCtx, stmt.Condition); err != nil {
 		return err
 	}
+	stmt.Condition = t.flattener.Flatten(stmt.Condition)
 	if err := t.resolveStmt(semCtx, stmt.Block); err != nil {
 		return err
 	}
@@ -230,6 +244,7 @@ func (t *TypeResolver) resolveWhileStmt(parent *SemanticAnalysisContext, stmt *W
 	if err := t.resolveCondition(semCtx, stmt.Condition); err != nil {
 		return err
 	}
+	stmt.Condition = t.flattener.Flatten(stmt.Condition)
 	return t.resolveStmt(semCtx, stmt.Block)
 }
 
@@ -256,6 +271,7 @@ func (t *TypeResolver) resolveForStmt(parent *SemanticAnalysisContext, stmt *For
 	if err := t.resolveCondition(semCtx, stmt.Condition); err != nil {
 		return err
 	}
+	stmt.Condition = t.flattener.Flatten(stmt.Condition)
 	if err := t.resolveStmt(semCtx, stmt.Increment); err != nil {
 		return err
 	}
