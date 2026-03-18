@@ -2,31 +2,58 @@ fun selectionSort(arrPtr *int, size int) {
     var ptrI = arrPtr
     for var i = 0; i < size - 1; i = i + 1 {
         var minPtr = ptrI
+        var minPtrVal = *minPtr
 
         var ptrJ = ptrI
         for var j = i; j < size; j = j + 1 {
-            if *ptrJ < *minPtr {
+            if *ptrJ < minPtrVal {
                 minPtr = ptrJ
+                minPtrVal = *ptrJ
             }
             ptrJ = ptrJ + 8
         }
 
         var temp int = *ptrI
-        *ptrI = *minPtr
+        *ptrI = minPtrVal
         *minPtr = temp
 
         ptrI = ptrI + 8
     }
-} 
+}
 
 fun rand(n int) int {
     return n*6364136223846793005 + 1
 }
 
+fun Fibonacci(n int) int { // functions support
+    var a = 0
+    var b = 1
+
+    for var i = 0; i < n; i = i + 1 {
+        var temp = a + b
+        a = b
+        b = temp
+    }
+    return a
+}
+
+fun FibonacciRecursive(n int) int {
+    if n == 0 {
+        return 0
+    }
+    if n == 1 {
+        return 1
+    }
+    var r1 = FibonacciRecursive(n - 1) // recursion works as well
+    var r2 = FibonacciRecursive(n - 2)
+    return r1 + r2
+}
+
+
 fun main () {
     var randSeed = 12312812
 
-    var arrSize = 10000000
+    var arrSize = 1000 * 100
     var intSize = 8
     var arrPointer = malloc(arrSize * intSize)
 
@@ -37,7 +64,7 @@ fun main () {
         arrTmp = arrTmp + intSize
     }
 
-    selectionSort(arrPointer, 100)
+    selectionSort(arrPointer, arrSize)
 
     free(arrPointer)
 }

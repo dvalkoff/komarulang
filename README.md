@@ -116,6 +116,56 @@ fun main () {
 }
 ```
 
+### Working with heap and pointers
+
+```
+fun selectionSort(arrPtr *int, size int) {
+    var ptrI = arrPtr
+    for var i = 0; i < size - 1; i = i + 1 {
+        var minPtr = ptrI
+        var minPtrVal = *minPtr
+
+        var ptrJ = ptrI
+        for var j = i; j < size; j = j + 1 {
+            if *ptrJ < minPtrVal {
+                minPtr = ptrJ
+                minPtrVal = *ptrJ
+            }
+            ptrJ = ptrJ + 8
+        }
+
+        var temp int = *ptrI
+        *ptrI = minPtrVal
+        *minPtr = temp
+
+        ptrI = ptrI + 8
+    }
+}
+
+fun rand(n int) int {
+    return n*6364136223846793005 + 1
+}
+
+fun main () {
+    var randSeed = 12312812
+
+    var arrSize = 1000 * 100
+    var intSize = 8
+    var arrPointer = malloc(arrSize * intSize) // builtin function
+
+    var arrTmp *int = arrPointer
+    for var i = 0; i < arrSize; i = i + 1 {
+        randSeed = rand(randSeed)
+        *arrTmp = randSeed
+        arrTmp = arrTmp + intSize
+    }
+
+    selectionSort(arrPointer, arrSize)
+
+    free(arrPointer) // another builtin
+}
+```
+
 # Interpreter launch
 
 ```
