@@ -226,6 +226,24 @@ func (s Ldr) String() string {
 	return fmt.Sprintf("    ldr %v, [sp, %v]", s.A, s.Offset)
 }
 
+type LdrDirect struct {
+	A      Register
+	Address Register
+}
+
+func (s LdrDirect) String() string {
+	return fmt.Sprintf("    ldr %v, [%v]", s.A, s.Address)
+}
+
+type StrDirect struct {
+	A      Register
+	Address Register
+}
+
+func (s StrDirect) String() string {
+	return fmt.Sprintf("    str %v, [%v]", s.A, s.Address)
+}
+
 type AsmLabel struct {
 	Name string
 }
@@ -393,4 +411,21 @@ _print_int:
     add sp, sp, #48 // deallocating stack
     ret
 `
+}
+
+type Extern struct {
+	Identifier SubroutineDecl
+}
+
+func (g Extern) String() string {
+	return fmt.Sprintf(".extern %v", g.Identifier.Value())
+}
+
+type DirectAddress struct {
+	Dst Register
+	Offset Imm
+}
+
+func (da DirectAddress) String() string {
+	return fmt.Sprintf("    add %v, sp, %v", da.Dst, da.Offset)
 }

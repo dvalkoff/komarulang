@@ -136,7 +136,7 @@ type VarDeclaration struct {
 func (d *VarDeclaration) Statement() {}
 
 type VarAssignment struct {
-	Identifier string
+	LeftExpr   Expression
 	Expr       Expression
 }
 
@@ -254,6 +254,7 @@ func (p *Parser) declaration() (Statement, error) {
 			p.rewind()
 			stmt, err = p.statement()
 		} else {
+			p.rewind()
 			stmt, err = p.assignment()
 		}
 	case p.match(token.LeftBrace):
@@ -272,6 +273,11 @@ func (p *Parser) declaration() (Statement, error) {
 		stmt = &BreakStatement{}
 	case p.match(token.Continue):
 		stmt = &ContinueStatement{}
+	case p.match(token.Star) && p.match(token.Identifier):
+		p.rewind()
+		p.rewind()
+		stmt, err = p.assignment()
+
 	default:
 		stmt, err = p.statement()
 	}
@@ -310,10 +316,11 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 			return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 		}
 		paramName := p.previous().Value.(string)
+		isPointer := p.match(token.Star)
 		if !p.match(token.Type) {
 			return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 		}
-		paramType, err := types.FromToken(p.previous())
+		paramType, err := types.FromToken(p.previous(), isPointer)
 		if err != nil {
 			return nil, err
 		}
@@ -330,10 +337,11 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 			return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 		}
 		paramName := p.previous().Value.(string)
+		isPointer := p.match(token.Star)
 		if !p.match(token.Type) {
 			return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 		}
-		paramType, err := types.FromToken(p.previous())
+		paramType, err := types.FromToken(p.previous(), isPointer)
 		if err != nil {
 			return nil, err
 		}
@@ -348,9 +356,11 @@ func (p *Parser) funcDeclaration() (*FunctionDecl, error) {
 	p.consume(token.RightParen)
 
 	returnType := types.VoidType
+
+	isPointer := p.match(token.Star)
 	if p.match(token.Type) {
 		var err error
-		returnType, err = types.FromToken(p.previous())
+		returnType, err = types.FromToken(p.previous(), isPointer)
 		if err != nil {
 			return nil, err
 		}
@@ -495,9 +505,10 @@ func (p *Parser) varDeclaration() (*VarDeclaration, error) {
 	identifier := p.previous().Value.(string)
 
 	varType := types.NotSpecified
+	isPointer := p.match(token.Star)
 	if p.match(token.Type) {
 		var err error
-		varType, err = types.FromToken(p.previous())
+		varType, err = types.FromToken(p.previous(), isPointer)
 		if err != nil {
 			return nil, err
 		}
@@ -515,13 +526,19 @@ func (p *Parser) varDeclaration() (*VarDeclaration, error) {
 }
 
 func (p *Parser) assignment() (*VarAssignment, error) {
-	identifier := p.previous().Value.(string)
-	err := p.consume(token.Equal)
+	lextExpr, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+	err = p.consume(token.Equal)
+	if err != nil {
+		return nil, err
+	}
 	expr, err := p.expression()
 	if err != nil {
 		return nil, err
 	}
-	return &VarAssignment{Identifier: identifier, Expr: expr}, nil
+	return &VarAssignment{LeftExpr: lextExpr, Expr: expr}, nil
 }
 
 func (p *Parser) statement() (Statement, error) {
@@ -688,7 +705,7 @@ func (p *Parser) factor() (Expression, error) {
 }
 
 func (p *Parser) unary() (Expression, error) {
-	if p.match(token.Minus, token.Bang) {
+	if p.match(token.Minus, token.Bang, token.Star, token.Ampersand) {
 		operator := p.previous().TokenType
 		right, err := p.unary()
 		if err != nil {
@@ -700,6 +717,13 @@ func (p *Parser) unary() (Expression, error) {
 			varType = types.IntType
 		case token.Bang:
 			varType = types.BoolType
+		case token.Star:
+			varType = types.IntType
+		case token.Ampersand:
+			varType, err = types.FromPointer(right.Type())
+			if err != nil {
+				return nil, err
+			}
 		}
 		return &UnaryExpression{ExprType: varType, Operator: operator, Right: right}, nil
 	}

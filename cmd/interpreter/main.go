@@ -21,12 +21,12 @@ func interpretStmt(env *env.Environment[any], stmt parser.Statement) {
 		value := evaluate(env, typed.Expr)
 		env.New(identifier, value)
 	case *parser.VarAssignment:
-		identifier := typed.Identifier
-		if !env.Exists(identifier) {
-			panic(fmt.Sprintf("variable %v does not exist", identifier))
-		}
-		value := evaluate(env, typed.Expr)
-		env.Set(identifier, value)
+		// evaluate(typed.LeftExpr)
+		// if !env.Exists(identifier) {
+		// 	panic(fmt.Sprintf("variable %v does not exist", identifier))
+		// }
+		// value := evaluate(env, typed.Expr)
+		// env.Set(identifier, value)
 	case *parser.ExprStatement:
 		evaluate(env, typed.Expr)
 	case *parser.PrintStatement:

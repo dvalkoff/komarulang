@@ -53,6 +53,8 @@ func sizeOf(varType types.Type) int {
 		return 8
 	case types.BoolType:
 		return 8
+	case types.BoolPointer, types.IntPointer:
+		return 8
 	}
 	return 0
 }

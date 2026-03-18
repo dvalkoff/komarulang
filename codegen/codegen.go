@@ -42,6 +42,9 @@ func NewCodeGenerator(entrypoint string) *CodeGenerator {
 }
 
 func (c *CodeGenerator) Compile(stmts []parser.Statement) error {
+	c.Prog.Emit(Extern{NewSubroutineDecl("malloc")})
+	c.Prog.Emit(Extern{NewSubroutineDecl("free")})
+
 	c.Prog.Emit(
 		Global{
 			NewSubroutineDecl(c.EntrypointIdentifier),
@@ -369,23 +372,20 @@ func (c *CodeGenerator) compileVarDeclaration(offsets *Offsets, varDecl *parser.
 }
 
 func (c *CodeGenerator) compileVarAssignment(offsets *Offsets, varAssignment *parser.VarAssignment) error {
-	reg, err := c.compileExpr(offsets, varAssignment.Expr, NewRegisterAllocatorDefault())
+	regAllocator := NewRegisterAllocatorDefault()
+	leftReg, err := c.compileLeftExpr(offsets, varAssignment.LeftExpr, regAllocator)
 	if err != nil {
 		return err
 	}
-	c.Prog.Emit(Str{
+	reg, err := c.compileExpr(offsets, varAssignment.Expr, regAllocator)
+	if err != nil {
+		return err
+	}
+	c.Prog.Emit(StrDirect{
 		A:      reg,
-		Offset: Imm(offsets.Get(varAssignment.Identifier)),
+		Address: leftReg,
 	})
 	return nil
-}
-
-type DebugInstruction struct {
-	Value string
-}
-
-func (di DebugInstruction) String() string {
-	return di.Value
 }
 
 func (c *CodeGenerator) compileExprWrapper(parent *Offsets, expr *parser.ExpressionWrapper) (Register, error) {
@@ -411,6 +411,44 @@ func (c *CodeGenerator) compileExprWrapper(parent *Offsets, expr *parser.Express
 		Value: Imm(offsets.StackSize),
 	})
 	return dst, nil
+}
+
+func (c *CodeGenerator) compileLeftExpr(offsets *Offsets, expr parser.Expression, regAllocator *RegisterAllocator) (Register, error) {
+	switch e := expr.(type) {
+	case *parser.IdentifierLiteral:
+		dst, succeeded := regAllocator.Alloc(expr.Type())
+		if !succeeded {
+			return 0, fmt.Errorf("Failed to allocate register")
+		}
+		c.Prog.Emit(Mov{
+			Dst: dst,
+			Src: Imm(0),
+		})
+		c.Prog.Emit(DirectAddress{
+			Dst: dst,
+			Offset: Imm(offsets.Get(e.Value)),
+		})
+		return dst, nil
+	case *parser.UnaryExpression:
+		switch e.Operator {
+		case token.Star:
+			dst, succeeded := regAllocator.Alloc(expr.Type())
+			if !succeeded {
+				return 0, fmt.Errorf("Failed to allocate register")
+			}
+			reg, err := c.compileLeftExpr(offsets, e.Right, regAllocator)
+			if err != nil {
+				return 0, err
+			}
+			regAllocator.Free(e.Right.Type())
+			c.Prog.Emit(LdrDirect{
+				A: dst,
+				Address: reg,
+			})
+			return dst, nil
+		}
+	}
+	return 0, fmt.Errorf("Unexpected expression")
 }
 
 func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, regAllocator *RegisterAllocator) (Register, error) {
@@ -461,7 +499,6 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 			return 0, err
 		}
 		regAllocator.Free(e.Right.Type())
-
 		switch e.Operator {
 		case token.Minus:
 			c.Prog.Emit(Neg{
@@ -480,6 +517,12 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 					B:   right,
 				},
 			})
+		case token.Star:
+			c.Prog.Emit(LdrDirect{
+				A: dst,
+				Address: right,
+			})
+		case token.Ampersand:
 		}
 		return dst, nil
 	case *parser.BinaryExpression:

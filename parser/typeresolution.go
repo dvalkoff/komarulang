@@ -49,6 +49,16 @@ func NewTypeResolver() *TypeResolver {
 
 func (t *TypeResolver) Resolve(stmts []Statement) error {
 	semCtx := FromSemanticAnalysisContext(nil)
+	semCtx.FunEnv.New("malloc",&FunctionDecl{
+		Name: "malloc",
+		Arguments: []*FunctionArgument{{VarType: types.IntType}},
+		ReturnType: types.IntPointer,
+	})
+	semCtx.FunEnv.New("free",&FunctionDecl{
+		Name: "free",
+		Arguments: []*FunctionArgument{{VarType: types.IntPointer}},
+		ReturnType: types.VoidType,
+	})
 	for _, stmt := range stmts {
 		if funcDecl, ok := stmt.(*FunctionDecl); ok {
 			if semCtx.FunEnv.Exists(funcDecl.Name) {
@@ -175,17 +185,18 @@ func (t *TypeResolver) resolveVarDeclaration(semCtx *SemanticAnalysisContext, va
 }
 
 func (t *TypeResolver) resolveVarAssignment(semCtx *SemanticAnalysisContext, assignment *VarAssignment) error {
-	identifierType, ok := semCtx.VarEnv.Get(assignment.Identifier)
-	if !ok {
-		return fmt.Errorf("Variable %v does not exist", assignment.Identifier)
+	leftExprType, err := t.evaluateType(semCtx, assignment.LeftExpr)
+	assignment.LeftExpr = t.flattener.Flatten(assignment.LeftExpr)
+	if err != nil {
+		return err
 	}
 	calculatedType, err := t.evaluateType(semCtx, assignment.Expr)
 	assignment.Expr = t.flattener.Flatten(assignment.Expr)
 	if err != nil {
 		return err
 	}
-	if !t.compatible(identifierType, calculatedType) {
-		return TypeError{Expected: identifierType, Got: calculatedType}
+	if !t.compatible(leftExprType, calculatedType) {
+		return TypeError{Expected: leftExprType, Got: calculatedType}
 	}
 	return nil
 }
