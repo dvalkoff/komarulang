@@ -439,6 +439,7 @@ func (p *Parser) forStatement() (*ForStatement, error) {
 	case p.match(token.Var):
 		varDecl, err = p.varDeclaration()
 	case p.match(token.Identifier):
+		p.rewind()
 		varDecl, err = p.assignment()
 	default:
 		return nil, errors.Join(
@@ -464,6 +465,7 @@ func (p *Parser) forStatement() (*ForStatement, error) {
 	if !p.match(token.Identifier) {
 		return nil, ParserError{Expected: token.Identifier, Got: p.peek()}
 	}
+	p.rewind()
 	increment, err := p.assignment()
 	if err != nil {
 		return nil, err

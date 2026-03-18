@@ -1,6 +1,43 @@
+fun selectionSort(arrPtr *int, size int) {
+    var ptrI = arrPtr
+    for var i = 0; i < size - 1; i = i + 1 {
+        var minPtr = ptrI
+
+        var ptrJ = ptrI
+        for var j = i; j < size; j = j + 1 {
+            if *ptrJ < *minPtr {
+                minPtr = ptrJ
+            }
+            ptrJ = ptrJ + 8
+        }
+
+        var temp int = *ptrI
+        *ptrI = *minPtr
+        *minPtr = temp
+
+        ptrI = ptrI + 8
+    }
+} 
+
+fun rand(n int) int {
+    return n*6364136223846793005 + 1
+}
+
 fun main () {
-    var a = malloc(8)
-    *a = 5
-    *a = *a + 5
-    print(*a)
+    var randSeed = 12312812
+
+    var arrSize = 10000000
+    var intSize = 8
+    var arrPointer = malloc(arrSize * intSize)
+
+    var arrTmp *int = arrPointer
+    for var i = 0; i < arrSize; i = i + 1 {
+        randSeed = rand(randSeed)
+        *arrTmp = randSeed
+        arrTmp = arrTmp + intSize
+    }
+
+    selectionSort(arrPointer, 100)
+
+    free(arrPointer)
 }

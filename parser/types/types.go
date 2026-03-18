@@ -32,6 +32,8 @@ func (t Type) TypeToString() string {
 		return "<*int>"
 	case BoolPointer:
 		return "<*bool>"
+	case NotSpecified:
+		return "<unknown>"
 	}
 	return ""
 }

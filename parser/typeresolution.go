@@ -356,6 +356,9 @@ func (t *TypeResolver) evaluateFunCall(semCtx *SemanticAnalysisContext, funCall 
 }
 
 func (t *TypeResolver) compatible(t1, t2 types.Type) bool {
+	if t1 == types.IntType && t2 == types.IntPointer || t2 == types.IntType && t1 == types.IntPointer {
+		return true
+	}
 	return t1 == t2
 }
 

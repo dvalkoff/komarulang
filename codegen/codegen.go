@@ -373,11 +373,11 @@ func (c *CodeGenerator) compileVarDeclaration(offsets *Offsets, varDecl *parser.
 
 func (c *CodeGenerator) compileVarAssignment(offsets *Offsets, varAssignment *parser.VarAssignment) error {
 	regAllocator := NewRegisterAllocatorDefault()
-	leftReg, err := c.compileLeftExpr(offsets, varAssignment.LeftExpr, regAllocator)
+	reg, err := c.compileExpr(offsets, varAssignment.Expr, regAllocator)
 	if err != nil {
 		return err
 	}
-	reg, err := c.compileExpr(offsets, varAssignment.Expr, regAllocator)
+	leftReg, err := c.compileLeftExpr(offsets, varAssignment.LeftExpr, regAllocator)
 	if err != nil {
 		return err
 	}
@@ -388,7 +388,10 @@ func (c *CodeGenerator) compileVarAssignment(offsets *Offsets, varAssignment *pa
 	return nil
 }
 
-func (c *CodeGenerator) compileExprWrapper(parent *Offsets, expr *parser.ExpressionWrapper) (Register, error) {
+func (c *CodeGenerator) compileExprWrapper(parent *Offsets, expr *parser.ExpressionWrapper, regAllocator *RegisterAllocator) (Register, error) {
+	if regAllocator.CurrentReg != 0 {
+		return 0, fmt.Errorf("Register should be 0")
+	}
 	offsets := NewOffsets(parent)
 	for _, varDecl := range expr.TempVars {
 		offsets.Put(varDecl)
@@ -402,7 +405,7 @@ func (c *CodeGenerator) compileExprWrapper(parent *Offsets, expr *parser.Express
 		c.compileStmt(offsets, varDecl)
 	}
 
-	dst, err := c.compileExpr(offsets, expr.Expr, NewRegisterAllocatorDefault())
+	dst, err := c.compileExpr(offsets, expr.Expr, regAllocator)
 	if err != nil {
 		return 0, err
 	}
@@ -420,10 +423,6 @@ func (c *CodeGenerator) compileLeftExpr(offsets *Offsets, expr parser.Expression
 		if !succeeded {
 			return 0, fmt.Errorf("Failed to allocate register")
 		}
-		c.Prog.Emit(Mov{
-			Dst: dst,
-			Src: Imm(0),
-		})
 		c.Prog.Emit(DirectAddress{
 			Dst: dst,
 			Offset: Imm(offsets.Get(e.Value)),
@@ -454,9 +453,9 @@ func (c *CodeGenerator) compileLeftExpr(offsets *Offsets, expr parser.Expression
 func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, regAllocator *RegisterAllocator) (Register, error) {
 	switch e := expr.(type) {
 	case *parser.ExpressionWrapper:
-		return c.compileExprWrapper(offsets, e)
+		return c.compileExprWrapper(offsets, e, regAllocator)
 	case *parser.FunctionCall:
-		return c.compileFunctionCall(offsets, e)
+		return c.compileFunctionCall(offsets, e, regAllocator)
 	case *parser.IntegerLiteral:
 		dst, succeeded := regAllocator.Alloc(expr.Type())
 		if !succeeded {
@@ -704,16 +703,20 @@ func (c *CodeGenerator) loadInt(reg Register, value int) []Instruction {
 	return instructions
 }
 
-func (c *CodeGenerator) compileFunctionCall(offsets *Offsets, expr *parser.FunctionCall) (Register, error) {
-	regAllocator := NewRegisterAllocatorDefault()
+func (c *CodeGenerator) compileFunctionCall(offsets *Offsets, expr *parser.FunctionCall, regAllocator *RegisterAllocator) (Register, error) {
+	if regAllocator.CurrentReg != 0 {
+		return 0, fmt.Errorf("Function call should have zero registers allocated")
+	}
 	for _, arg := range expr.Arguments {
 		_, err := c.compileExpr(offsets, arg, regAllocator)
 		if err != nil {
 			return 0, err
 		}
 	}
+	
 	c.Prog.Emit(CallSubroutine{
 		NewSubroutineDecl(expr.Name),
 	})
+	
 	return 0, nil
 }
