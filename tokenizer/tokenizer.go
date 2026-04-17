@@ -140,11 +140,19 @@ func (t *LineTokenizer) token(val rune) (Token, error) {
 			end++
 			return Token{TokenType: GreaterEqual, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 		}
+		if t.match('>') {
+			end++
+			return Token{TokenType: GreaterGreater, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
+		}
 		return Token{TokenType: Greater, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '<':
 		if t.match('=') {
 			end++
 			return Token{TokenType: LessEqual, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
+		}
+		if t.match('<') {
+			end++
+			return Token{TokenType: LessLess, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 		}
 		return Token{TokenType: Less, Value: nil, LineNumber: t.line, StartIndex: start, EndIndex: end}, nil
 	case '=':

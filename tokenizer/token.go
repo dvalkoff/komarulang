@@ -32,6 +32,9 @@ const (
 	Less
 	LessEqual
 
+	LessLess
+	GreaterGreater
+
 	// literals
 	Integer
 	Bool

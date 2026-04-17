@@ -639,6 +639,7 @@ func (p *Parser) bitwiseOR() (Expression, error) {
 	}
 	return expression, nil
 }
+
 func (p *Parser) bitwiseXOR() (Expression, error) {
 	expression, err := p.bitwiseAND()
 	if err != nil {
@@ -655,13 +656,31 @@ func (p *Parser) bitwiseXOR() (Expression, error) {
 	}
 	return expression, nil
 }
+
 func (p *Parser) bitwiseAND() (Expression, error) {
-	expression, err := p.term()
+	expression, err := p.bitwiseShift()
 	if err != nil {
 		return nil, err
 	}
 
 	for p.match(token.Ampersand) {
+		operator := p.previous().TokenType
+		right, err := p.bitwiseShift()
+		if err != nil {
+			return nil, err
+		}
+		expression = &BinaryExpression{ExprType: types.IntType, Left: expression, Operator: operator, Right: right}
+	}
+	return expression, nil
+}
+
+func (p *Parser) bitwiseShift() (Expression, error) {
+	expression, err := p.term()
+	if err != nil {
+		return nil, err
+	}
+
+	for p.match(token.LessLess, token.GreaterGreater) {
 		operator := p.previous().TokenType
 		right, err := p.term()
 		if err != nil {

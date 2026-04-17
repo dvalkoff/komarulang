@@ -155,6 +155,22 @@ func (s BitwiseXor) String() string {
 	return fmt.Sprintf("    eor %v, %v, %v", s.Dst, s.A, s.B)
 }
 
+type BitwiseLeftShift struct {
+	BinaryOperation
+}
+
+func (s BitwiseLeftShift) String() string {
+	return fmt.Sprintf("    lsl %v, %v, %v", s.Dst, s.A, s.B)
+}
+
+type BitwiseRightShift struct {
+	BinaryOperation
+}
+
+func (s BitwiseRightShift) String() string {
+	return fmt.Sprintf("    lsr %v, %v, %v", s.Dst, s.A, s.B)
+}
+
 type Cmd struct {
 	A Register
 	B Register

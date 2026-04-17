@@ -552,6 +552,22 @@ func (c *CodeGenerator) compileExpr(offsets *Offsets, expr parser.Expression, re
 					B:   right,
 				},
 			})
+		case token.LessLess:
+			c.Prog.Emit(BitwiseLeftShift{
+				BinaryOperation{
+					Dst: dst,
+					A:   left,
+					B:   right,
+				},
+			})
+		case token.GreaterGreater:
+			c.Prog.Emit(BitwiseRightShift{
+				BinaryOperation{
+					Dst: dst,
+					A:   left,
+					B:   right,
+				},
+			})
 		case token.Star:
 			c.Prog.Emit(Mul{
 				BinaryOperation{

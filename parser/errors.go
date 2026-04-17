@@ -113,6 +113,10 @@ func tokenToString(t token.TokenType) string {
 		return "<return>"
 	case token.Fun:
 		return "<fun>"
+	case token.LessLess:
+		return "<<"
+	case token.GreaterGreater:
+		return ">>"
 	}
 	return ""
 }
